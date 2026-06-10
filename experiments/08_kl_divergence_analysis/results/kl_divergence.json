@@ -1,0 +1,8 @@
+{
+  "kl_sqa_qa_nats": 0.38281505590204984,
+  "kl_qa_sqa_nats": 1.055402622193151,
+  "js_divergence_nats": 0.09790387517632113,
+  "js_divergence_bound_nats": 0.6931471805599453,
+  "rmse_sqa": 0.077708,
+  "rmse_qa": 0.079481
+}

@@ -1,0 +1,12 @@
+{
+  "label": "sqa_30k",
+  "t": 6,
+  "Np": 11,
+  "n_microstates": 2048,
+  "n_samples": 30000,
+  "beta_eff": 49.26760642768048,
+  "T_eff": 0.020297312423080506,
+  "tv_distance_at_beta_eff": 0.2557666665282089,
+  "tv_distance_at_beta_1": 0.3061531028210869,
+  "violation_rate_at_t": 3.3333333333333335e-05
+}

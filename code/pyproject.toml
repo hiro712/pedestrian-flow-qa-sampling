@@ -1,0 +1,19 @@
+[project]
+name = "qa-pedestrian-flow"
+version = "0.2.0"
+description = "Pedestrian flow prediction and sign placement optimization using QA sampling"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "matplotlib>=3.10.3",
+  "networkx>=3.5",
+  "openjij>=0.10.15",
+  "dwave-neal>=0.6.0",
+  "dwave-ocean-sdk>=9.0.0",
+  "python-dotenv>=1.1.1",
+  "pandas>=2.3.3",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src*"]

@@ -1,0 +1,17 @@
+{
+  "max_abs_coeff_before": 34.95454545454545,
+  "min_abs_coeff_before": 0.25,
+  "ratio_before": 139.8181818181818,
+  "h_range": [
+    -6.0,
+    6.0
+  ],
+  "j_range": [
+    -1.0,
+    1.0
+  ],
+  "allowed_max": 1.0,
+  "scale_factor": 0.02717815344603381,
+  "max_abs_coeff_after": 0.95,
+  "min_abs_coeff_after": 0.006794538361508453
+}
