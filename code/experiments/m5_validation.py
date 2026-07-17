@@ -1,19 +1,21 @@
 """
-M5 査読対応: 検証の循環性に対する3つの分析。
+M5 review response: three analyses addressing circularity in the validation.
 
 (a) Leave-One-Out Cross Validation:
-    時刻ブロック t を1つ除いた損失で (alpha, beta) を選び、
-    除外した時刻 t におけるアウトオブサンプル RMSE を測定する。
-    これにより「同じ指標で選んで報告する」循環性を解消する。
+    Select (alpha, beta) using the loss with one time block t held out, then
+    measure out-of-sample RMSE on the held-out time block t. This removes the
+    circularity of "selecting and reporting with the same metric."
 
-(b) (alpha, beta) の ±10% 摂動に対するフロー行列 F の感度分析。
+(b) Sensitivity analysis of the flow matrix F to +-10% perturbations of
+    (alpha, beta).
 
-(c) RMSE のブートストラップ信頼区間（SQA, QA それぞれの既存軌跡から再標本化）。
+(c) Bootstrap confidence intervals for RMSE (resampled from the existing
+    SQA and QA trajectories).
 
-高速なハイパーパラメータ探索のため、(a)(b) では SA ソルバー（論文の
-gridsearch.py と同じ既定ソルバー）を縮小 read 数で用いる。
+For fast hyperparameter search, (a) and (b) use the SA solver (the same
+default solver as the manuscript's gridsearch.py) with a reduced read count.
 
-使い方:
+Usage:
     uv run python experiments/m5_validation.py
 """
 
@@ -44,8 +46,8 @@ LAMBDA_ENTRY = 2.0
 LAMBDA_MOVE = 0.5
 NUM_SWEEPS = 100
 
-SEARCH_READS = 3000     # グリッドサーチ用（高速化のため縮小）
-EVAL_READS = 10000      # 最終評価用
+SEARCH_READS = 3000     # for grid search (reduced for speed)
+EVAL_READS = 10000      # for final evaluation
 SEED = 0
 
 ALPHA_GRID = [0.1, 0.2, 0.3, 0.4, 0.5]
@@ -86,7 +88,7 @@ def loo_cv(C, distances, solver):
             if train_loss < best["loss"]:
                 best = {"loss": train_loss, "alpha": a, "beta": b, "p_prime": p_prime}
 
-        # 最終評価: 選ばれた (alpha,beta) で held-out RMSE を測る（評価時は read 数を増やす）
+        # Final evaluation: measure held-out RMSE with the selected (alpha, beta) (more reads for evaluation)
         seed_eval = SEED + 777 + t_held
         p_prime_eval, _ = run_once(C, distances, best["alpha"], best["beta"], EVAL_READS, seed_eval, solver)
         held_out_rmse = float(np.sqrt(np.mean((p_true[t_held] - p_prime_eval[t_held]) ** 2)))

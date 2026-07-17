@@ -1,7 +1,7 @@
 """
-Fig 2: p_true vs p_prime の3段ヒートマップ（論文用）。
+Fig 2: three-panel heatmap of p_true vs p_prime (for the manuscript).
 
-使い方:
+Usage:
     uv run python figures/fig_proportions.py results/sqa_30k/results.json
     uv run python figures/fig_proportions.py results/sqa_30k/results.json --out figures/out/
 """
@@ -66,8 +66,8 @@ def plot_proportions(results_path: Path, out_dir: Path) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("results_json", help="results.json のパス")
-    parser.add_argument("--out", default=None, help="出力ディレクトリ（デフォルト: results.json と同じ場所）")
+    parser.add_argument("results_json", help="path to results.json")
+    parser.add_argument("--out", default=None, help="output directory (default: same location as results.json)")
     args = parser.parse_args()
 
     results_path = Path(args.results_json)

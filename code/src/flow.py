@@ -14,9 +14,11 @@ def reconstruct_proportions(
     N: int,
 ) -> np.ndarray:
     """
-    軌跡リストから各時刻の内部ゾーン占有割合 p' (T×N) を復元する。
+    Reconstruct the internal-zone occupancy proportions p' (T x N) at each
+    time step from a list of trajectories.
 
-    外部ノード(0)はカウントしない。内部ゾーンは 1..N → 列インデックス 0..N-1。
+    The outside node (0) is not counted. Internal zones 1..N map to
+    column indices 0..N-1.
     """
     if not traj_list:
         return np.zeros((T_steps, N), dtype=float)
@@ -37,7 +39,8 @@ def build_flow_matrix(
     Np: int,
 ) -> np.ndarray:
     """
-    軌跡リストからゾーン間フロー行列 F (Np×Np) を構築する（行正規化済み）。
+    Build the zone-to-zone flow matrix F (Np x Np) from a list of
+    trajectories (row-normalized).
     """
     F_counts = np.zeros((Np, Np), dtype=float)
     for traj in traj_list:

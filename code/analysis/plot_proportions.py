@@ -1,7 +1,7 @@
 """
-p_true と p_prime のヒートマップを比較する図を生成する。
+Generate a figure comparing heatmaps of p_true and p_prime.
 
-使い方:
+Usage:
     uv run python analysis/plot_proportions.py results/sqa_30k/results.json
     uv run python analysis/plot_proportions.py results/sqa_30k/results.json --out figures/
 """
@@ -21,8 +21,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("results_json", type=str, help="results.json のパス")
-    parser.add_argument("--out", type=str, default=None, help="出力ディレクトリ（デフォルト: results.json と同じ場所）")
+    parser.add_argument("results_json", type=str, help="path to results.json")
+    parser.add_argument("--out", type=str, default=None, help="output directory (default: same location as results.json)")
     args = parser.parse_args()
 
     results_path = Path(args.results_json)

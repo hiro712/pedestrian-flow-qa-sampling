@@ -19,9 +19,9 @@ def decode_traj(
     rng: np.random.Generator,
 ) -> list[int]:
     """
-    1サンプルを長さ T_steps の軌跡に変換する。
-    - 同時刻で2以上 → ランダムに1つ選択
-    - 同時刻で0個  → 外部ノード(0)を選択
+    Convert a single sample into a trajectory of length T_steps.
+    - 2 or more active at the same time step -> pick one at random
+    - 0 active at the same time step -> pick the outside node (0)
     """
     def idx(i: int, t: int) -> int:
         return i * T_steps + t
@@ -39,7 +39,7 @@ def decode_traj(
 
 
 def compute_violation_rate(sampleset: SampleSet, T_steps: int, Np: int) -> float:
-    """One-Hot 違反率（同時刻で2以上選択されたスロットの割合）。"""
+    """One-hot violation rate (fraction of slots with 2+ selections at the same time step)."""
     def idx(i: int, t: int) -> int:
         return i * T_steps + t
 
@@ -55,7 +55,7 @@ def compute_violation_rate(sampleset: SampleSet, T_steps: int, Np: int) -> float
 
 
 def qubo_energy(sample: dict[int, int], Q: Qubo) -> float:
-    """正規化済み QUBO に対してエネルギーを再計算する。"""
+    """Recompute the energy against the normalized QUBO."""
     e = 0.0
     for (u, v), w in Q.items():
         e += w * sample.get(u, 0) * sample.get(v, 0)
@@ -71,7 +71,7 @@ def save_results(
     output_dir: Path,
 ) -> None:
     """
-    sampleset.json / traj.csv / エネルギーヒストグラム を output_dir に保存する。
+    Save sampleset.json / traj.csv / energy histograms to output_dir.
     """
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -85,7 +85,7 @@ def save_results(
         for traj in traj_list:
             writer.writerow(traj)
 
-    # エネルギーヒストグラム (A) ハードウェア報告値
+    # Energy histogram (A): hardware-reported values
     hw_energies = sampleset.record.energy
     plt.figure()
     plt.hist(hw_energies, bins=50)
@@ -95,7 +95,7 @@ def save_results(
     plt.savefig(output_dir / "energy_histogram_hw.png")
     plt.close()
 
-    # エネルギーヒストグラム (B) QUBO再計算 raw vs fixed
+    # Energy histogram (B): recomputed QUBO energy, raw vs fixed
     rng = np.random.default_rng(0)
 
     def fix_onehot(sample: dict[int, int]) -> dict[int, int]:

@@ -1,7 +1,7 @@
 """
-α/β グリッドサーチ + 最良パラメータで本番実験。
+alpha/beta grid search + final run with the best parameters.
 
-使い方:
+Usage:
     uv run python experiments/gridsearch.py --solver sqa
     uv run python experiments/gridsearch.py --solver sa --reads 100
 """
@@ -24,15 +24,15 @@ LAMBDA_P = 5.0
 LAMBDA_DIV = 1.0
 LAMBDA_ENTRY = 2.0
 LAMBDA_MOVE = 0.5
-NUM_SWEEPS = 100   # 論文と同じ設定
+NUM_SWEEPS = 100   # same setting as in the manuscript
 SEED = None
 
 
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--solver", choices=["sa", "sqa"], default="sa")
-    parser.add_argument("--reads", type=int, default=100, help="グリッドサーチ時のサンプル数")
-    parser.add_argument("--final-reads", type=int, default=30_000, help="本番実験のサンプル数")
+    parser.add_argument("--reads", type=int, default=100, help="number of samples during grid search")
+    parser.add_argument("--final-reads", type=int, default=30_000, help="number of samples for the final run")
     parser.add_argument("--out", type=str, default=None)
     args = parser.parse_args()
 
@@ -45,7 +45,7 @@ def main() -> None:
     distances, _ = get_distances()
     solver = get_solver(args.solver)
 
-    # ステージ1: 広く粗く
+    # Stage 1: wide and coarse
     alphas_s1 = list(map(float, np.arange(0.0, 6.0 + 1e-9, 0.5)))
     betas_s1 = list(map(float, np.arange(0.3, 2.5 + 1e-9, 0.2)))
 
@@ -60,7 +60,7 @@ def main() -> None:
         history_csv="history_stage1.csv",
     )
 
-    # ステージ2: ベスト周辺を細かく
+    # Stage 2: fine-grained around the best point
     win_a, step_a = 0.6, 0.1
     win_b, step_b = 0.6, 0.05
     alphas_s2 = list(map(float, np.arange(max(0.0, a1 - win_a), a1 + win_a + 1e-9, step_a)))
@@ -77,7 +77,7 @@ def main() -> None:
         history_csv="history_stage2.csv",
     )
 
-    # 本番実験
+    # Final run
     print(f"\n=== Final run: α={a2}, β={b2}, reads={args.final_reads} ===")
     run_experiment(
         C_history=C_history, distances=distances,

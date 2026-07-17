@@ -1,13 +1,13 @@
 """
-D-Wave 実機 QA 実験スクリプト。
+D-Wave hardware QA experiment script.
 
-使い方:
+Usage:
     uv run python experiments/run_qa.py
     uv run python experiments/run_qa.py --reads 100 --annealing-time 20
 
-事前準備:
-    .env.local に DWAVE_SOLVER_NAME と DWAVE_API_TOKEN を設定すること。
-    利用可能なソルバー: uv run python -c "from dwave.cloud import Client; print([s.id for s in Client.from_config().get_solvers()])"
+Prerequisites:
+    Set DWAVE_SOLVER_NAME and DWAVE_API_TOKEN in .env.local.
+    Available solvers: uv run python -c "from dwave.cloud import Client; print([s.id for s in Client.from_config().get_solvers()])"
 """
 
 import argparse
@@ -57,9 +57,9 @@ def main() -> None:
     distances, _ = get_distances()
     solver = QASolver()
 
-    # annealing_time は QASolver の solve() で sample_config に渡す
-    # _pipeline.run_experiment は num_reads と seed しか cfg に追加しないため、
-    # ここでは SolverBase を wrap して annealing_time を注入する
+    # annealing_time is passed to QASolver's solve() via sample_config.
+    # _pipeline.run_experiment only adds num_reads and seed to cfg, so
+    # we wrap SolverBase here to inject annealing_time.
     class _QAWithAT(type(solver)):
         def solve(self, Q, sample_config=None):
             cfg = dict(sample_config or {})

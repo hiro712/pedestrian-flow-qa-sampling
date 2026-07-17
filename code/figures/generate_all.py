@@ -1,20 +1,20 @@
 """
-論文用の全図を一括生成するスクリプト。
+Script to generate all figures for the manuscript in one batch.
 
-使い方:
+Usage:
     uv run python figures/generate_all.py
     uv run python figures/generate_all.py --sqa results/sqa_30k/results.json --qa results/qa_advantage2_30k/results.json
     uv run python figures/generate_all.py --out figures/out/
 
-生成される図:
-    fig_graph.png          … 会場グラフ構造
-    fig_data.png           … 観測データ（ゾーン合計 + 時系列ヒートマップ）
-    fig_proportions_sqa.png … p_true vs p_prime（SQA）
-    fig_proportions_qa.png  … p_true vs p_prime（QA）
-    fig_flow_matrix_sqa.png … フロー行列F（SQA）
-    fig_flow_matrix_qa.png  … フロー行列F（QA）
-    fig_edge_flow_sqa.png   … エッジフロー（SQA）
-    fig_edge_flow_qa.png    … エッジフロー（QA）
+Generated figures:
+    fig_graph.png            ... venue graph structure
+    fig_data.png             ... observed data (zone totals + time-series heatmap)
+    fig_proportions_sqa.png  ... p_true vs p_prime (SQA)
+    fig_proportions_qa.png   ... p_true vs p_prime (QA)
+    fig_flow_matrix_sqa.png  ... flow matrix F (SQA)
+    fig_flow_matrix_qa.png   ... flow matrix F (QA)
+    fig_edge_flow_sqa.png    ... edge flow (SQA)
+    fig_edge_flow_qa.png     ... edge flow (QA)
 """
 
 import argparse
@@ -33,11 +33,11 @@ from figures.fig_edge_flow import plot_edge_flow
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--sqa", default="results/sqa_30k/results.json",
-                        help="SQA の results.json パス")
+                        help="path to SQA's results.json")
     parser.add_argument("--qa", default="results/qa_advantage2_30k/results.json",
-                        help="QA の results.json パス")
+                        help="path to QA's results.json")
     parser.add_argument("--data", default="data/observations.json")
-    parser.add_argument("--out", default="figures/out", help="出力ディレクトリ")
+    parser.add_argument("--out", default="figures/out", help="output directory")
     parser.add_argument("--top", type=int, default=3)
     args = parser.parse_args()
 
@@ -60,7 +60,7 @@ def main() -> None:
 
         print(f"\n=== fig_proportions ({suffix}) ===")
         plot_proportions(rpath, out_dir)
-        # ファイル名にsuffix を付ける
+        # Append the suffix to the filename
         (out_dir / "fig_proportions.png").rename(out_dir / f"fig_proportions_{suffix}.png")
 
         print(f"\n=== fig_flow_matrix ({suffix}) ===")

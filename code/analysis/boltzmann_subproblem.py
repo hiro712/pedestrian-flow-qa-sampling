@@ -1,22 +1,27 @@
 """
-M11(a)+(b): 縮小サブ問題（1時間スライス、2^(N+1)=2048通り）における
-有効逆温度 beta_eff の推定と、経験分布とボルツマン分布間の全変動距離 (TV距離)。
+M11(a)+(b): estimating the effective inverse temperature beta_eff on a
+reduced sub-problem (one time slice, 2^(N+1)=2048 states), and the total
+variation (TV) distance between the empirical distribution and the
+Boltzmann distribution.
 
-時刻 t を1つ固定すると、QUBO のうち時刻 t 内の変数同士のみを結合する項
-（one-hot 制約 L_unique の対角ブロック、および L_div/L_entry/L_move の対角線形項）
-だけが「局所サブQUBO」 Q_sub を構成する。これは厳密に Np=11 変数 → 2^11=2048
-通りなので、全列挙によって厳密なボルツマン分布 P(x) ∝ exp(-beta * E_sub(x))
-と分配関数を計算できる（Benedetti et al., arXiv:1510.07611 と同様の
-「厳密に扱える部分系で検証する」アプローチ）。
+Fixing a single time step t, the only QUBO terms that couple variables
+within time step t (the diagonal block of the one-hot constraint L_unique,
+and the diagonal linear terms of L_div/L_entry/L_move) form a "local
+sub-QUBO" Q_sub. This has exactly Np=11 variables -> 2^11=2048 states, so
+full enumeration gives the exact Boltzmann distribution
+P(x) ∝ exp(-beta * E_sub(x)) and partition function (the same "verify on an
+exactly tractable subsystem" approach as Benedetti et al., arXiv:1510.07611).
 
-経験分布は、サンプルセットの生のバイナリサンプル（修復前）から時刻 t の
-活性化パターンを抜き出して構成する。これにより、サンプラーの出力が
-QUBO 自身が定義するボルツマン分布にどれだけ近いかを直接検証できる。
+The empirical distribution is built by extracting the activation pattern at
+time t from the sampleset's raw binary samples (before repair). This lets us
+directly check how close the sampler's output is to the Boltzmann
+distribution defined by the QUBO itself.
 
-beta_eff は、経験分布と厳密ボルツマン分布間の KL ダイバージェンスを最小化する
-beta として最尤推定する。
+beta_eff is the maximum-likelihood estimate of beta that minimizes the KL
+divergence between the empirical distribution and the exact Boltzmann
+distribution.
 
-使い方:
+Usage:
     uv run python analysis/boltzmann_subproblem.py results/sqa_30k --t 6
     uv run python analysis/boltzmann_subproblem.py results/qa_advantage2_30k --t 6
 """
@@ -53,9 +58,10 @@ def idx(i: int, t: int, T_steps: int) -> int:
 
 
 def build_local_subqubo(Q: dict, t: int, Np: int, T_steps: int) -> np.ndarray:
-    """時刻 t の変数同士のみを結合する項を抽出し、(Np, Np) 行列として返す
-    （対角=線形項、非対角=結合項の半分ずつ；energy = sum_i M[i,i] x_i + sum_{i<j} 2 M[i,j] x_i x_j
-    となるよう対称行列に整形する）。"""
+    """Extract the terms coupling only variables at time t and return them as
+    an (Np, Np) matrix (diagonal = linear terms, off-diagonal = half the
+    coupling term each; shaped into a symmetric matrix so that
+    energy = sum_i M[i,i] x_i + sum_{i<j} 2 M[i,j] x_i x_j)."""
     M = np.zeros((Np, Np))
     targets = {idx(i, t, T_steps): i for i in range(Np)}
     for (u, v), w in Q.items():
@@ -70,16 +76,17 @@ def build_local_subqubo(Q: dict, t: int, Np: int, T_steps: int) -> np.ndarray:
 
 
 def enumerate_energies(M: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-    """全 2^Np 状態のエネルギーを計算する。"""
+    """Compute the energy of all 2^Np states."""
     Np = M.shape[0]
     states = np.array(list(product([0, 1], repeat=Np)), dtype=float)  # (2^Np, Np)
-    # E(x) = x^T M x  (M は対称、対角=線形項として上の構成で正しく計算される)
+    # E(x) = x^T M x  (M is symmetric; diagonal = linear terms, correctly computed by the construction above)
     E = np.einsum("si,ij,sj->s", states, M, states)
     return states, E
 
 
 def empirical_distribution(samples_bits: np.ndarray) -> np.ndarray:
-    """サンプル群（n_samples, Np)の0/1配列から、2^Np 通りの経験的頻度分布を作る。"""
+    """Build the empirical frequency distribution over 2^Np states from a
+    (n_samples, Np) array of 0/1 samples."""
     Np = samples_bits.shape[1]
     n_states = 2 ** Np
     weights = (1 << np.arange(Np - 1, -1, -1))
@@ -125,7 +132,7 @@ def tv_distance(p: np.ndarray, q: np.ndarray) -> float:
 
 
 def load_full_sampleset(path: Path, Np: int, T_steps: int, t: int) -> np.ndarray:
-    """sampleset.json を読み、時刻 t における (n_samples, Np) の0/1配列を返す。"""
+    """Read sampleset.json and return the (n_samples, Np) 0/1 array at time t."""
     print(f"  loading {path} (this may take a while for large files) ...")
     with open(path, "r", encoding="utf-8") as f:
         d = json.load(f)
@@ -140,8 +147,8 @@ def load_full_sampleset(path: Path, Np: int, T_steps: int, t: int) -> np.ndarray
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("result_dir", type=str, help="例: results/sqa_30k")
-    parser.add_argument("--t", type=int, default=6, help="解析対象の時刻スライス (0-indexed)")
+    parser.add_argument("result_dir", type=str, help="e.g. results/sqa_30k")
+    parser.add_argument("--t", type=int, default=6, help="time slice to analyze (0-indexed)")
     args = parser.parse_args()
 
     result_dir = Path(args.result_dir)
@@ -169,7 +176,7 @@ def main() -> None:
     bits = load_full_sampleset(result_dir / "sampleset.json", Np, T_steps, t)
     print(f"[{label}] n_samples = {len(bits)}")
 
-    # 経験分布（厳密列挙の状態順序に揃える）
+    # Empirical distribution (aligned to the exact-enumeration state order)
     state_ids = state_id_for_enumeration(states)
     order = np.argsort(state_ids)
     states_sorted, E_sorted, ids_sorted = states[order], E[order], state_ids[order]
@@ -191,7 +198,7 @@ def main() -> None:
     print(f"[{label}] TV distance (empirical vs Boltzmann @ beta_eff={fit['beta_eff']:.3f}) = {tv_fit:.4f}")
     print(f"[{label}] TV distance (empirical vs Boltzmann @ beta=1, nominal QUBO units)   = {tv_unit:.4f}")
 
-    # 占有数 k = sum(x) でグルーピングした周辺分布も報告（可視化しやすい）
+    # Also report the marginal distribution grouped by occupancy count k = sum(x) (easier to visualize)
     k_emp = states_sorted.sum(axis=1).astype(int)
     k_max = Np
     k_dist_emp = np.bincount(np.repeat(k_emp, 1), weights=p_emp, minlength=k_max + 1)

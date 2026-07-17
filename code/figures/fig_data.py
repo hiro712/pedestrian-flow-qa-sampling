@@ -1,7 +1,8 @@
 """
-Fig 1 補足: ゾーンごとの観測人数合計棒グラフ（データ確認・論文用）。
+Fig 1 supplement: bar chart of total observed headcount per zone
+(for data inspection and the manuscript).
 
-使い方:
+Usage:
     uv run python figures/fig_data.py
     uv run python figures/fig_data.py --data data/observations.json --out figures/out/
 """
@@ -33,14 +34,14 @@ def plot_data(data_path: Path, out_dir: Path) -> None:
 
     fig, axes = plt.subplots(1, 2, figsize=(14, 5))
 
-    # --- 左: ゾーン合計棒グラフ ---
+    # --- Left: bar chart of zone totals ---
     axes[0].bar(x, zone_totals, color="steelblue", alpha=0.8)
     axes[0].set_xlabel("Zone index")
     axes[0].set_ylabel("Total observed (sum over all time steps)")
     axes[0].set_title("Total pedestrian count per zone")
     axes[0].set_xticks(x)
 
-    # --- 右: 時系列ヒートマップ ---
+    # --- Right: time-series heatmap ---
     im = axes[1].imshow(arr.T, aspect="auto", origin="lower", cmap="Blues")
     axes[1].set_xlabel("Time step")
     axes[1].set_ylabel("Zone index")
@@ -66,7 +67,7 @@ def plot_data(data_path: Path, out_dir: Path) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--data", default="data/observations.json", help="observations.json のパス")
+    parser.add_argument("--data", default="data/observations.json", help="path to observations.json")
     parser.add_argument("--out", default=None)
     args = parser.parse_args()
 

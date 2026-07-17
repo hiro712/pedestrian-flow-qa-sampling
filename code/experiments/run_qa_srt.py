@@ -1,10 +1,11 @@
 """
-M2(a): Spin-Reversal Transform (SRT) 実験。
+M2(a): Spin-Reversal Transform (SRT) experiment.
 
-ゲージ依存ノイズ（積分制御誤差の一部）を、ランダムなゲージ変換を多数適用して
-平均化することで除去した場合に、制約違反率がどう変化するかを調べる。
+Examines how the constraint-violation rate changes when gauge-dependent
+noise (part of the integrated control error) is averaged out by applying
+many random gauge transforms.
 
-使い方:
+Usage:
     uv run python experiments/run_qa_srt.py
     uv run python experiments/run_qa_srt.py --reads 30000 --srt 100
 """
@@ -46,11 +47,13 @@ EMBEDDING_CACHE = Path("results/_embedding_cache/qubo_main_embedding.json")
 
 
 class SRTQASolver(SolverBase):
-    """FixedEmbeddingComposite + SpinReversalTransformComposite でゲージ平均化したQA。
+    """QA with gauge averaging via FixedEmbeddingComposite + SpinReversalTransformComposite.
 
-    SRTは係数の符号を反転するだけで変数間の結合構造(=埋め込み)は変えないため、
-    埋め込みを1回だけ計算してFixedEmbeddingCompositeで固定し、100ゲージすべてで
-    使い回す(EmbeddingCompositeだとゲージごとに埋め込み探索が走り直してしまう)。
+    SRT only flips coefficient signs and does not change the coupling
+    structure between variables (i.e. the embedding), so the embedding is
+    computed once, fixed via FixedEmbeddingComposite, and reused across all
+    100 gauges (with EmbeddingComposite, embedding search would rerun for
+    every gauge).
     """
 
     def __init__(self, num_spin_reversal_transforms: int, annealing_time: int,

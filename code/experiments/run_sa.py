@@ -1,7 +1,7 @@
 """
-SA (Simulated Annealing) 実験スクリプト。
+SA (Simulated Annealing) experiment script.
 
-使い方:
+Usage:
     uv run python experiments/run_sa.py
     uv run python experiments/run_sa.py --reads 100
 """
@@ -28,7 +28,7 @@ LAMBDA_ENTRY = 2.0
 LAMBDA_MOVE = 0.5
 SEED = None
 NUM_READS = 30_000
-NUM_SWEEPS = 100     # 論文と同じ設定（OpenJij デフォルト 1000 ではないので注意）
+NUM_SWEEPS = 100     # same setting as in the manuscript (note: not OpenJij's default of 1000)
 OUTPUT_DIR = Path("results/sa_30k")
 
 

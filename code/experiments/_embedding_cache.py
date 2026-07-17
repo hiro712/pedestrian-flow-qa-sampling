@@ -1,12 +1,14 @@
 """
-M1/M2 実験で共有する埋め込み(embedding)のキャッシュ。
+Embedding cache shared by the M1/M2 experiments.
 
-SRT実験(run_qa_srt.py)とauto_scale実験(run_qa_autoscale.py)は同一のQUBO構造
-(同一のalpha/beta/lambda設定)を使うため、マイナー埋め込みを1回だけ計算して
-JSONに保存し、両実験で使い回す。スピン反転変換(SRT)も係数の符号を変えるだけで
-変数間の結合構造は変えないため、同じ埋め込みをそのまま使い回せる。
+The SRT experiment (run_qa_srt.py) and the auto_scale experiment
+(run_qa_autoscale.py) use the identical QUBO structure (same alpha/beta/lambda
+settings), so the minor-embedding is computed once, saved to JSON, and reused
+by both experiments. A spin-reversal transform (SRT) only flips coefficient
+signs and does not change the coupling structure between variables, so the
+same embedding can be reused as-is.
 
-使い方:
+Usage:
     embedding = get_or_compute_embedding(Q, hw_sampler, cache_path)
     fixed_sampler = FixedEmbeddingComposite(hw_sampler, embedding)
 """

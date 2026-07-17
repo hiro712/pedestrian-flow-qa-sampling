@@ -1,7 +1,7 @@
-# 環境変数の読み込み
+# Load environment variables
 import os
 
-# 型関連
+# Type-related
 from typing import Mapping, Optional, Any, cast
 from abc import ABC, abstractmethod
 from dimod import SampleSet
@@ -52,7 +52,7 @@ class SASolver(SolverBase):
 
         sampler = oj.SASampler()
         sampleset = sampler.sample_qubo(Q, **sample_config)
-        sampleset = cast(SampleSet, sampleset)  # 型キャスト
+        sampleset = cast(SampleSet, sampleset)  # type cast
         return sampleset
 
     def _solve_with_neal(
@@ -74,7 +74,7 @@ class QASolver(SolverBase):
         TOKEN = os.getenv("DWAVE_API_TOKEN")
         self.sampler = DWaveSampler(solver=SOLVER_NAME, token=TOKEN)
         self.use_greedy = use_greedy
-        self.max_num_reads = 5000  # D-Waveの1回のサンプリング上限
+        self.max_num_reads = 5000  # D-Wave's per-call sampling limit
         super().__init__()
 
     def solve(self, Q: Qubo, sample_config: Optional[SampleConfig] = None) -> SampleSet:
@@ -88,12 +88,12 @@ class QASolver(SolverBase):
         else:
             sample_config = {**self.sample_config, **sample_config}
 
-        # num_readsが明示的に指定されているかチェック
+        # Check whether num_reads was explicitly specified
         total_num_reads = sample_config.get("num_reads")
 
-        # 複数回に分割する必要があるかチェック（num_readsが指定されており、かつ上限を超える場合）
+        # Check whether splitting into multiple calls is needed (num_reads is specified and exceeds the limit)
         if total_num_reads is not None and total_num_reads > self.max_num_reads:
-            # 分割回数を計算
+            # Compute the number of chunks
             num_iterations = (
                 total_num_reads + self.max_num_reads - 1
             ) // self.max_num_reads
@@ -103,26 +103,26 @@ class QASolver(SolverBase):
                 if i < num_iterations - 1:
                     reads_per_iteration.append(self.max_num_reads)
                 else:
-                    # 最後のイテレーションで残りを処理
+                    # Handle the remainder on the last iteration
                     remaining_reads = total_num_reads - (
                         self.max_num_reads * (num_iterations - 1)
                     )
                     reads_per_iteration.append(remaining_reads)
 
-            # 各イテレーションでサンプリングして結果を結合
+            # Sample on each iteration and combine the results
             combined_sampleset = None
             bqm = self._convert_bqm_from_qubo(Q)
             embedding = self._find_embedding(bqm)
             embed_bqm = self._embed_bqm(bqm, embedding)
 
             for num_reads in reads_per_iteration:
-                # configを更新
+                # Update the config
                 current_config = {**sample_config, "num_reads": num_reads}
 
-                # サンプリング
+                # Sample
                 response = self.sampler.sample(embed_bqm, **current_config)
 
-                # 埋め込みの解除
+                # Unembed
                 sampleset = unembed_sampleset(
                     response,
                     embedding,
@@ -135,32 +135,32 @@ class QASolver(SolverBase):
                         "Unembedding failed, resulting object is not a SampleSet."
                     )
 
-                # 結果を結合
+                # Combine the results
                 if combined_sampleset is None:
                     combined_sampleset = sampleset
                 else:
                     combined_sampleset = combined_sampleset.aggregate()
                     new_sampleset = sampleset.aggregate()
-                    # SampleSetを結合
+                    # Concatenate the SampleSets
                     combined_sampleset = concatenate(
                         [combined_sampleset, new_sampleset]
                     )
 
-            # combined_samplesetがNoneでないことを確認
+            # Confirm combined_sampleset is not None
             if combined_sampleset is None:
                 raise ValueError("Sampling failed, no valid sampleset was generated.")
 
             sampleset = combined_sampleset
         else:
-            # 通常のサンプリング（10000以下）
+            # Normal sampling (10000 or fewer)
             bqm = self._convert_bqm_from_qubo(Q)
             embedding = self._find_embedding(bqm)
             embed_bqm = self._embed_bqm(bqm, embedding)
 
-            # サンプリング
+            # Sample
             response = self.sampler.sample(embed_bqm, **sample_config)
 
-            # 埋め込みの解除
+            # Unembed
             sampleset = unembed_sampleset(
                 response,
                 embedding,
@@ -173,7 +173,7 @@ class QASolver(SolverBase):
                     "Unembedding failed, resulting object is not a SampleSet."
                 )
 
-        # Greedy で解を改善する (Optional)
+        # Improve the solution with Greedy (optional)
         if self.use_greedy:
             bqm = self._convert_bqm_from_qubo(Q)
             sampleset = SteepestDescentSampler().sample(bqm, initial_states=sampleset)
@@ -191,14 +191,14 @@ class QASolver(SolverBase):
             verbose=0,  # When set to 1, it prints out information about the embedding process.
         )
 
-        # 埋め込み失敗のチェック
+        # Check whether embedding failed
         if not emb:
             raise ValueError("No embedding found.")
 
-        # 型キャスト　(find_embeddingの戻り値がAnyなので)
+        # Type cast (find_embedding's return type is Any)
         emb = cast(Mapping[int, list[int]], emb)
 
-        # 埋め込みが全ての論理変数をカバーしているかのチェック（基本的にはこのif文にひっかからないはず）
+        # Check whether the embedding covers all logical variables (should never hit this branch)
         logical_vars = set(bqm.variables)
         if set(emb.keys()) != logical_vars:
             raise ValueError("Embedding does not cover all logical variables.")
@@ -230,8 +230,8 @@ class SQASolver(SolverBase):
     Parameters
     ----------
     use_greedy : bool, optional
-        取得したサンプルをBinaryQuadraticModel上でSteepestDescentで
-        局所改善するかどうか。デフォルト False。
+        Whether to locally improve the obtained samples with SteepestDescent
+        on the BinaryQuadraticModel. Default False.
     """
 
     def __init__(self, use_greedy: bool = False):
@@ -246,9 +246,9 @@ class SQASolver(SolverBase):
 
         sampler = oj.SQASampler()
         sampleset = sampler.sample_qubo(Q, **sample_config)
-        sampleset = cast(SampleSet, sampleset)  # 型キャスト
+        sampleset = cast(SampleSet, sampleset)  # type cast
 
-        # Greedy で解を改善する (Optional)
+        # Improve the solution with Greedy (optional)
         if self.use_greedy:
             bqm = BinaryQuadraticModel.from_qubo(Q)
             sampleset = SteepestDescentSampler().sample(bqm, initial_states=sampleset)
@@ -257,7 +257,7 @@ class SQASolver(SolverBase):
 
 
 if __name__ == "__main__":
-    # 例のQUBO
+    # Example QUBO
     Q = {
         (0, 0): -1.0,
         (1, 1): -1.0,
@@ -284,7 +284,7 @@ if __name__ == "__main__":
     # QA
     from dotenv import load_dotenv
 
-    load_dotenv(dotenv_path=".env.local")  # .env.local から環境変数を読み込む
+    load_dotenv(dotenv_path=".env.local")  # load environment variables from .env.local
     print("DWAVE_SOLVER_NAME:", os.getenv("DWAVE_SOLVER_NAME"))
     solver = QASolver()
     ss = solver.solve(Q)

@@ -13,26 +13,26 @@ def build_qubo(
     lambda_move: float,
 ) -> Qubo:
     """
-    遷移確率行列 P から QUBO 辞書を構築する。
+    Build a QUBO dict from the transition probability matrix P.
 
-    変数インデックス: x_{i,t} → i * T_steps + t
-      i=0: 外部ノード, i=1..N: 内部ゾーン
+    Variable index: x_{i,t} -> i * T_steps + t
+      i=0: outside node, i=1..N: internal zones
 
-    各項は max_abs で正規化してから λ 倍して合算する。
+    Each term is normalized by its max_abs value, then scaled by lambda and summed.
 
     Parameters
     ----------
     P : ndarray (N+1, N+1)
-        遷移確率行列
+        Transition probability matrix
     T_steps : int
-        時間ステップ数
+        Number of time steps
     lambda_* : float
-        各項の重み係数
+        Weight coefficient for each term
 
     Returns
     -------
     Q : dict
-        QUBO 辞書（上三角 + 対角成分のみ）
+        QUBO dict (upper triangle + diagonal terms only)
     """
     Np = P.shape[0]
     Q: Qubo = {}
@@ -47,7 +47,7 @@ def build_qubo(
         for key, val in base.items():
             Q[key] = Q.get(key, 0.0) + lam * (val / max_abs)
 
-    # --- One-Hot: 同時刻で複数選択を罰 ---
+    # --- One-hot: penalize multiple selections at the same time step ---
     onehot: Qubo = {}
     for t in range(T_steps):
         for i in range(Np):
@@ -56,7 +56,7 @@ def build_qubo(
                 onehot[k] = onehot.get(k, 0.0) + 2.0
     add_normalized(onehot, lambda_onehot)
 
-    # --- P 嗜好: i@t-1 → j@t に -P[i,j] ---
+    # --- P preference: -P[i,j] for i@t-1 -> j@t ---
     pref: Qubo = {}
     for t in range(1, T_steps):
         for i in range(Np):
@@ -65,7 +65,7 @@ def build_qubo(
                 pref[k] = pref.get(k, 0.0) - P[i, j]
     add_normalized(pref, lambda_P)
 
-    # --- 訪問分散: 各ゾーンへの偏りを抑制 ---
+    # --- Visit dispersion: suppress bias toward any particular zone ---
     avg_visits = T_steps / Np
     div: Qubo = {}
     for i in range(Np):
@@ -77,7 +77,7 @@ def build_qubo(
                 div[(ii, jj)] = div.get((ii, jj), 0.0) + 2.0
     add_normalized(div, lambda_div)
 
-    # --- 外部ノード(0)の出入り抑制 ---
+    # --- Suppress toggling in/out of the outside node (0) ---
     entry: Qubo = {}
     for t in range(T_steps - 1):
         ii, jj = idx(0, t), idx(0, t + 1)
@@ -86,7 +86,7 @@ def build_qubo(
         entry[(ii, jj)] = entry.get((ii, jj), 0.0) - 2.0
     add_normalized(entry, lambda_entry)
 
-    # --- 内部移動の平滑化 ---
+    # --- Smoothing of internal moves ---
     move: Qubo = {}
     for i in range(1, Np):
         for t in range(T_steps - 1):

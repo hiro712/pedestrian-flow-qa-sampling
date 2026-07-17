@@ -1,7 +1,7 @@
 """
-Fig 4: グラフ上にエッジフロー比率を可視化（論文用）。
+Fig 4: visualize edge flow ratios on the graph (for the manuscript).
 
-使い方:
+Usage:
     uv run python figures/fig_edge_flow.py results/sqa_30k/results.json
     uv run python figures/fig_edge_flow.py results/sqa_30k/results.json --top 3 --out figures/out/
 """
@@ -33,14 +33,14 @@ def plot_edge_flow(results_path: Path, out_dir: Path, top: int = 3) -> None:
     G.add_weighted_edges_from(EDGES)
     pos = nx.spring_layout(G, seed=42, k=2, iterations=50)
 
-    # エッジごとのフロー比率（全遷移に対する割合）
+    # Flow ratio per edge (share of all transitions)
     total_flow = F.sum()
     edge_flow_ratio: dict[tuple[int, int], float] = {}
     for u, v, _ in EDGES:
         ratio = (F[u, v] + F[v, u]) / total_flow if total_flow > 0 else 0.0
         edge_flow_ratio[(u, v)] = ratio
 
-    # コンソールに表示
+    # Print to console
     print(f"Total flow: {total_flow:,.0f}")
     for rank, ((u, v), ratio) in enumerate(
         sorted(edge_flow_ratio.items(), key=lambda x: -x[1]), 1
@@ -53,11 +53,11 @@ def plot_edge_flow(results_path: Path, out_dir: Path, top: int = 3) -> None:
 
     fig, ax = plt.subplots(figsize=(14, 10))
 
-    # ノード
+    # Nodes
     nx.draw_networkx_nodes(G, pos, node_color="skyblue", node_size=1500, ax=ax)
     nx.draw_networkx_labels(G, pos, font_size=14, font_weight="bold", ax=ax)
 
-    # エッジ（トップ: 赤太線 / その他: グレー細線）
+    # Edges (top: thick red lines / others: thin gray lines)
     top_list = [(u, v) for (u, v) in edge_flow_ratio if (u, v) in top_edges]
     other_list = [(u, v) for (u, v) in edge_flow_ratio if (u, v) not in top_edges]
     top_widths = [8 * edge_flow_ratio[(u, v)] / max_ratio for u, v in top_list]
@@ -68,7 +68,7 @@ def plot_edge_flow(results_path: Path, out_dir: Path, top: int = 3) -> None:
     nx.draw_networkx_edges(G, pos, edgelist=other_list, width=other_widths,
                            edge_color="gray", alpha=0.5, ax=ax)
 
-    # エッジラベル（%表示）
+    # Edge labels (as %)
     edge_labels = {(u, v): f"{r*100:.2f}%" for (u, v), r in edge_flow_ratio.items()}
     nx.draw_networkx_edge_labels(
         G, pos, edge_labels=edge_labels, font_size=11,
@@ -91,8 +91,8 @@ def plot_edge_flow(results_path: Path, out_dir: Path, top: int = 3) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("results_json", help="results.json のパス")
-    parser.add_argument("--top", type=int, default=3, help="強調するトップエッジ数")
+    parser.add_argument("results_json", help="path to results.json")
+    parser.add_argument("--top", type=int, default=3, help="number of top edges to highlight")
     parser.add_argument("--out", default=None)
     args = parser.parse_args()
 

@@ -1,167 +1,169 @@
 # Pedestrian Flow Prediction Using QA Sampling
 
-QAサンプリングを用いた歩行者フロー予測・サイン配置の実験コード。
+Experiment code for pedestrian flow prediction and sign placement using QA sampling.
 
-このディレクトリは `public_release/` リポジトリの `code/` です。リポジトリ全体の構成や、
-ここに含まれる結果と論文記載値との対応は[トップレベルREADME](../README.md)を参照してください。
+This directory is the `code/` of the `public_release/` repository. For the overall repository
+layout, and how the results contained here map onto the values reported in the manuscript, see the
+[top-level README](../README.md).
 
 ---
 
-## セットアップ
+## Setup
 
 ```bash
-# このディレクトリ（code/）で実行する
+# Run from this directory (code/)
 cd code/
 
-# 依存パッケージのインストール（初回のみ）
+# Install dependencies (first time only)
 uv sync
 
-# 動作確認
+# Smoke test
 uv run python experiments/run_sqa.py --reads 100 --out results/test_sqa
 ```
 
 ---
 
-## ディレクトリ構成
+## Directory layout
 
 ```
 code/
-├── src/            コアライブラリ（graph, transition, qubo, trajectory, flow, metrics, solvers/）
-├── experiments/    実験スクリプト
-├── figures/        論文用図の生成スクリプト
-├── analysis/       データ確認・診断スクリプト
-├── gridsearch/, distance/, predict/, solve/  補助モジュール
-├── data/           入力データ（observations.json。../data/observations.json と同一内容）
-├── results/        スクリプトを実行した際の出力先（git管理外。再実行すると生成される）
-└── STRUCTURE.md    コード構造の詳細リファレンス
+├── src/            core library (graph, transition, qubo, trajectory, flow, metrics, solvers/)
+├── experiments/    experiment scripts
+├── figures/        scripts that generate the manuscript's figures
+├── analysis/       data-inspection / diagnostic scripts
+├── gridsearch/, distance/, predict/, solve/  auxiliary modules
+├── data/           input data (observations.json; identical to ../data/observations.json)
+├── results/        output destination when scripts are run (git-ignored; regenerated on rerun)
+└── STRUCTURE.md    detailed reference for the code structure
 ```
 
-各実験について「論文記載値」付きで整理済みの結果（curated results）は、ここではなく
-`../experiments/<NN_実験名>/results/` 以下に格納されている。詳細は
-[STRUCTURE.md](STRUCTURE.md) と[トップレベルREADME](../README.md)を参照。
+The curated results for each experiment (annotated with the value reported in the manuscript) are
+not stored here, but under `../experiments/<NN_experiment_name>/results/` at the repository root.
+See [STRUCTURE.md](STRUCTURE.md) and the [top-level README](../README.md) for details.
 
 ---
 
-## 実験の実行
+## Running the experiments
 
-### SQA（シミュレーテッド量子アニーリング）— 論文の主要結果
+### SQA (Simulated Quantum Annealing) — the manuscript's headline result
 
 ```bash
-# 論文再現（30000 reads、約数分〜数十分）
+# Reproduce the manuscript (30000 reads, roughly a few minutes to tens of minutes)
 uv run python experiments/run_sqa.py
 
-# 動作確認用（100 reads、数秒）
+# Smoke test (100 reads, a few seconds)
 uv run python experiments/run_sqa.py --reads 100 --out results/test_sqa
 ```
 
-結果は `results/sqa_30k/` に保存される（論文記載値の整理済みコピー: [`../experiments/01_sqa_baseline/results/sqa_30k/`](../experiments/01_sqa_baseline/results/sqa_30k/)）。論文記載値: **RMSE = 0.077708**
+Results are saved to `results/sqa_30k/` (curated copy of the manuscript value:
+[`../experiments/01_sqa_baseline/results/sqa_30k/`](../experiments/01_sqa_baseline/results/sqa_30k/)). Value reported in the manuscript: **RMSE = 0.077708**
 
-### SA（シミュレーテッドアニーリング）
+### SA (Simulated Annealing)
 
 ```bash
 uv run python experiments/run_sa.py
 uv run python experiments/run_sa.py --reads 100 --out results/test_sa
 ```
 
-結果は `results/sa_30k/` に保存（整理済みコピー: [`../experiments/02_sa_baseline/results/sa_30k/`](../experiments/02_sa_baseline/results/sa_30k/)）。論文参考値: RMSE = 0.0889
+Results are saved to `results/sa_30k/` (curated copy: [`../experiments/02_sa_baseline/results/sa_30k/`](../experiments/02_sa_baseline/results/sa_30k/)). Reference value in the manuscript: RMSE = 0.0889
 
-### D-Wave 実機（QA）
+### D-Wave hardware (QA)
 
-事前準備: `.env.local` に認証情報を設定する（下記「D-Wave の設定」参照）。
+Prerequisite: set credentials in `.env.local` (see "D-Wave configuration" below).
 
 ```bash
-# 利用可能なソルバーを確認
+# Check available solvers
 uv run python -c "
 from dotenv import load_dotenv; load_dotenv('.env.local')
 from dwave.cloud import Client
 print([s.id for s in Client.from_config().get_solvers()])
 "
 
-# 実行（30000 reads）
+# Run (30000 reads)
 uv run python experiments/run_qa.py
 
-# annealing time を変更する場合
+# To change the annealing time
 uv run python experiments/run_qa.py --annealing-time 100
 
-# 出力先を変更する場合
+# To change the output destination
 uv run python experiments/run_qa.py --out results/qa_srt_test
 ```
 
-### α/β グリッドサーチ
+### alpha/beta grid search
 
 ```bash
-# SA バックエンドで探索（推奨: 速い）
+# Search with the SA backend (recommended: fast)
 uv run python experiments/gridsearch.py --solver sa --reads 100
 
-# SQA バックエンドで探索
+# Search with the SQA backend
 uv run python experiments/gridsearch.py --solver sqa --reads 100 --final-reads 30000
 ```
 
-グリッドサーチは途中再開可能（`history_stage1.csv` / `history_stage2.csv` にキャッシュ）。
+The grid search can be resumed (cached in `history_stage1.csv` / `history_stage2.csv`).
 
 ---
 
-## 論文用図の生成
+## Generating the manuscript's figures
 
-### 全図を一括生成
+### Generate all figures in one batch
 
 ```bash
-# SQA と QA の結果から全図を生成（figures/out/ に保存）
+# Generate all figures from the SQA and QA results (saved to figures/out/)
 uv run python figures/generate_all.py
 
-# 出力先を指定
+# Specify the output destination
 uv run python figures/generate_all.py --out /path/to/paper/figures/
 
-# 使用する results.json を指定（curated結果を直接使う例）
+# Specify which results.json to use (example: using the curated results directly)
 uv run python figures/generate_all.py \
     --sqa ../experiments/01_sqa_baseline/results/sqa_30k/results.json \
     --qa  ../experiments/03_qa_hardware_baseline/results/qa_advantage2_30k/results.json \
     --out figures/out/
 ```
 
-### 個別に生成
+### Generate individually
 
 ```bash
-# 会場グラフ（Fig 1）
+# Venue graph (Fig 1)
 uv run python figures/fig_graph.py --out figures/out/
 
-# 観測データ（ゾーン合計 + 時系列ヒートマップ）
+# Observed data (zone totals + time-series heatmap)
 uv run python figures/fig_data.py --out figures/out/
 
-# p_true vs p_prime ヒートマップ（Fig 2）
+# p_true vs p_prime heatmap (Fig 2)
 uv run python figures/fig_proportions.py ../experiments/01_sqa_baseline/results/sqa_30k/results.json --out figures/out/
 
-# フロー行列 F（Fig 3）
+# Flow matrix F (Fig 3)
 uv run python figures/fig_flow_matrix.py ../experiments/01_sqa_baseline/results/sqa_30k/results.json --out figures/out/
 
-# エッジフロー比率グラフ（Fig 4）
+# Edge flow ratio graph (Fig 4)
 uv run python figures/fig_edge_flow.py ../experiments/01_sqa_baseline/results/sqa_30k/results.json --out figures/out/
-uv run python figures/fig_edge_flow.py ../experiments/01_sqa_baseline/results/sqa_30k/results.json --top 5  # 上位5を強調
+uv run python figures/fig_edge_flow.py ../experiments/01_sqa_baseline/results/sqa_30k/results.json --top 5  # highlight the top 5
 ```
 
 ---
 
-## 実験結果の確認
+## Inspecting experiment results
 
-各実験の出力ディレクトリに以下が保存される。
+Each experiment's output directory contains the following:
 
-| ファイル | 内容 |
+| File | Contents |
 |---|---|
-| `results.json` | RMSE・violation_rate・P・F・p_true・p_prime 等 |
-| `sampleset.json` | 全サンプルセット（SQA: ~300MB、QA: ~60MB） |
-| `traj.csv` | 全軌跡（行=サンプル、列=時刻） |
-| `energy_histogram_hw.png` | ハードウェア報告エネルギー分布 |
-| `energy_histogram_overlay.png` | Raw vs Fixed（QUBO再計算）のエネルギー比較 |
-| `energy_histogram_fixed.png` | Fixed のみのエネルギー分布 |
+| `results.json` | RMSE, violation_rate, P, F, p_true, p_prime, etc. |
+| `sampleset.json` | The full sampleset (SQA: ~300MB, QA: ~60MB) |
+| `traj.csv` | All trajectories (rows = samples, columns = time steps) |
+| `energy_histogram_hw.png` | Hardware-reported energy distribution |
+| `energy_histogram_overlay.png` | Raw vs Fixed (recomputed QUBO) energy comparison |
+| `energy_histogram_fixed.png` | Fixed-only energy distribution |
 
 ```bash
-# RMSE と violation_rate だけ確認したい場合（自分で実行した結果の例）
+# To check just RMSE and violation_rate (example for a result you ran yourself)
 python -c "
 import json; r = json.load(open('results/sqa_30k/results.json'))
 print(f'RMSE={r[\"rmse\"]:.6f}  violation={r[\"violation_rate\"]:.4f}')
 "
 
-# curated（論文記載値）の結果を直接確認する場合
+# To check the curated (manuscript-reported) results directly
 python -c "
 import json; r = json.load(open('../experiments/01_sqa_baseline/results/sqa_30k/results.json'))
 print(f'RMSE={r[\"rmse\"]:.6f}  violation={r[\"violation_rate\"]:.4f}')
@@ -170,54 +172,55 @@ print(f'RMSE={r[\"rmse\"]:.6f}  violation={r[\"violation_rate\"]:.4f}')
 
 ---
 
-## D-Wave の設定
+## D-Wave configuration
 
-`.env.local` に以下を記載する（git 管理外）:
+Set the following in `.env.local` (git-ignored):
 
 ```
 DWAVE_SOLVER_NAME=Advantage2_system2.3
 DWAVE_API_TOKEN=your-token-here
 ```
 
-**利用可能なソルバー**は時期によって変わる。事前に上記の確認コマンドで確認すること。
+**Available solvers** change over time. Check with the command above before running.
 
-過去に使用したソルバー:
-- `Advantage2_system1.6` — 廃止済み（論文記載値はこれで取得）
-- `Advantage2_system1.11` — 廃止済みの可能性あり
+Solvers used previously:
+- `Advantage2_system1.6` — retired (the manuscript value was obtained on this solver)
+- `Advantage2_system1.11` — possibly retired
 
 ---
 
-## QUBO パラメータ
+## QUBO parameters
 
-論文に使用した値。変更する場合は各 `experiments/run_*.py` 冒頭の定数を編集する。
+Values used in the manuscript. To change them, edit the constants at the top of each
+`experiments/run_*.py` script.
 
-| パラメータ | 値 | 意味 |
+| Parameter | Value | Meaning |
 |---|---|---|
-| `alpha` | 0.3 | 距離減衰係数 |
-| `beta` | 0.55 | 目的地人気度の指数 |
-| `lambda_onehot` | 13.0 | One-Hot 制約（ハード制約） |
-| `lambda_P` | 5.0 | 遷移確率への追従（ソフト） |
-| `lambda_div` | 1.0 | 訪問分散 |
-| `lambda_entry` | 2.0 | 外部ノード出入り制御 |
-| `lambda_move` | 0.5 | 内部移動の平滑化 |
+| `alpha` | 0.3 | Distance-decay coefficient |
+| `beta` | 0.55 | Destination-popularity exponent |
+| `lambda_onehot` | 13.0 | One-hot constraint (hard constraint) |
+| `lambda_P` | 5.0 | Adherence to the transition probabilities (soft) |
+| `lambda_div` | 1.0 | Visit dispersion |
+| `lambda_entry` | 2.0 | Control of entry/exit through the outside node |
+| `lambda_move` | 0.5 | Smoothing of internal moves |
 
 ---
 
-## 既存の実験結果（再実行不要なもの）
+## Existing experiment results (no rerun needed)
 
-論文記載値の整理済み結果（curated results）は `code/` 以下ではなく、リポジトリ直下の
-`experiments/<NN_実験名>/results/` 以下に格納されている。
+The curated results reported in the manuscript are not stored under `code/`, but under
+`experiments/<NN_experiment_name>/results/` at the repository root.
 
-| ディレクトリ（`../experiments/` 以下） | ソルバー | RMSE | violation_rate | 備考 |
+| Directory (under `../experiments/`) | Solver | RMSE | violation_rate | Notes |
 |---|---|---|---|---|
-| `01_sqa_baseline/results/sqa_30k/` | SQA | 0.077708 | 0.0% | **論文記載値** |
-| `03_qa_hardware_baseline/results/qa_advantage2_30k/` | D-Wave Advantage2_system1.6 | 0.079481 | 95.1% | **論文記載値**（ソルバー廃止済み） |
-| `02_sa_baseline/results/sa_30k/` | SA | 0.088900 | 0.0% | 参考値 |
-| `02_sa_baseline/results/sa_gridsearch/` | SA + 2段階探索 | 0.069900 | 0.0% | α/β 自動決定 |
-| `04_classical_pt_baseline/results/pt_30k/` | Parallel Tempering（温度をCVで選択） | 0.069184 | 0.6% | **論文記載値**（10-fold CVでレプリカ温度を選択; `cv_summary.json`参照） |
-| `05_dynamic_range_analysis/results/qa_autoscale_30k/` | D-Wave Advantage2_system1（手動スケーリング） | 0.106361 | 56.5% | 追加検証（M1） |
-| `06_gauge_averaging_srt/results/qa_srt_30k/` | D-Wave Advantage2_system1（SRT 100ゲージ） | 0.167999 | 51.5% | 追加検証（M2） |
-| `10_new_chip_rerun/results/qa_advantage2_system1_30k/` | D-Wave Advantage2_system1 | 0.092575 | 95.5% | 新チップでの再実行（M10補足） |
+| `01_sqa_baseline/results/sqa_30k/` | SQA | 0.077708 | 0.0% | **Value reported in the manuscript** |
+| `03_qa_hardware_baseline/results/qa_advantage2_30k/` | D-Wave Advantage2_system1.6 | 0.079481 | 95.1% | **Value reported in the manuscript** (solver retired) |
+| `02_sa_baseline/results/sa_30k/` | SA | 0.088900 | 0.0% | Reference value |
+| `02_sa_baseline/results/sa_gridsearch/` | SA + two-stage search | 0.069900 | 0.0% | alpha/beta auto-selected |
+| `04_classical_pt_baseline/results/pt_30k/` | Parallel Tempering (temperature selected via CV) | 0.069184 | 0.6% | **Value reported in the manuscript** (replica temperature selected via 10-fold CV; see `cv_summary.json`) |
+| `05_dynamic_range_analysis/results/qa_autoscale_30k/` | D-Wave Advantage2_system1 (manual scaling) | 0.106361 | 56.5% | Supplementary check (M1) |
+| `06_gauge_averaging_srt/results/qa_srt_30k/` | D-Wave Advantage2_system1 (SRT, 100 gauges) | 0.167999 | 51.5% | Supplementary check (M2) |
+| `10_new_chip_rerun/results/qa_advantage2_system1_30k/` | D-Wave Advantage2_system1 | 0.092575 | 95.5% | Rerun on a newer chip (M10 supplement) |
 
-各実験フォルダのREADMEに、対応する論文中の主張・実行スクリプト・解釈の詳細が書かれている。
-
+Each experiment folder's README describes, in detail, the corresponding claim in the manuscript,
+the script that produced it, and the interpretation.

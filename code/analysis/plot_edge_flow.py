@@ -1,7 +1,7 @@
 """
-グラフ上にエッジフロー比率を可視化する。
+Visualize edge flow ratios on the graph.
 
-使い方:
+Usage:
     uv run python analysis/plot_edge_flow.py results/sqa_30k/results.json
 """
 
@@ -25,7 +25,7 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("results_json", type=str)
     parser.add_argument("--out", type=str, default=None)
-    parser.add_argument("--top", type=int, default=3, help="強調するトップフロー数")
+    parser.add_argument("--top", type=int, default=3, help="number of top flows to highlight")
     args = parser.parse_args()
 
     results_path = Path(args.results_json)
@@ -41,7 +41,7 @@ def main() -> None:
     G.add_weighted_edges_from(EDGES)
     pos = nx.spring_layout(G, seed=42, k=2.0, iterations=100)
 
-    # 内部ゾーン間フロー（外部ノード0を除く）
+    # Flow between internal zones (excluding the outside node 0)
     n = F.shape[0]
     edge_flows: dict[tuple[int, int], float] = {}
     total_flow = 0.0

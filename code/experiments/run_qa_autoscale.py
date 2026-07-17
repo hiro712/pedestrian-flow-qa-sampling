@@ -1,11 +1,11 @@
 """
-M1(b): auto_scale=False + 手動スケーリング実験。
+M1(b): auto_scale=False + manual scaling experiment.
 
-QUBO の係数を、埋め込み後の Ising 表現の h_range / J_range いっぱいまで
-線形スケーリングしてから auto_scale=False で投入する。これにより最小係数を
-ICE ノイズフロア (~2σ) より上に保てるかどうかを検証する。
+Linearly scale the QUBO coefficients to fill the h_range / J_range of the
+embedded Ising representation, then submit with auto_scale=False. This tests
+whether the minimum coefficient can be kept above the ICE noise floor (~2 sigma).
 
-使い方:
+Usage:
     uv run python experiments/run_qa_autoscale.py
 """
 
@@ -44,14 +44,16 @@ NUM_READS = 30_000
 ANNEALING_TIME = 20  # μs
 OUTPUT_DIR = Path("results/qa_autoscale_30k")
 EMBEDDING_CACHE = Path("results/_embedding_cache/qubo_main_embedding.json")
-MAX_READS_PER_CALL = 5000  # ソルバー側のnum_reads上限(現行 [1, 10000])に収まるチャンクサイズ。src/solvers/qa.pyに合わせる
+MAX_READS_PER_CALL = 5000  # chunk size within the solver's num_reads limit (currently [1, 10000]); matches src/solvers/qa.py
 
 
 class ManualScaleQASolver(SolverBase):
-    """係数を h_range/J_range いっぱいまでスケールし、auto_scale=False で投入するQA。
+    """QA that scales coefficients to fill h_range/J_range and submits with auto_scale=False.
 
-    SRT実験(run_qa_srt.py)と同一QUBO構造のため、同じ埋め込みキャッシュを共有して
-    使い回す(埋め込み探索の重複計算を避け、両実験の比較条件を揃える)。
+    Shares the same embedding cache as the SRT experiment (run_qa_srt.py),
+    since both use an identical QUBO structure (avoids redundant embedding
+    search and keeps the comparison conditions matched between the two
+    experiments).
     """
 
     def __init__(self, annealing_time: int, embedding_cache: Path = EMBEDDING_CACHE):
@@ -115,7 +117,7 @@ class ManualScaleQASolver(SolverBase):
                 **cfg,
             )
 
-        # ソルバー側のnum_reads上限を超える場合はチャンクに分割して送信し、結果をconcatenateする
+        # If num_reads exceeds the solver's per-call limit, split into chunks and concatenate the results
         chunks = []
         remaining = num_reads
         while remaining > 0:
@@ -172,7 +174,7 @@ def main() -> None:
         solver_name=f"QA-ManualScale({solver_name})",
     )
 
-    # スケーリング情報も保存
+    # Also save the scaling info
     with open(out_dir / "scale_info.json", "w", encoding="utf-8") as f:
         json.dump(solver.scale_info, f, ensure_ascii=False, indent=2)
     print(f"Scale info saved to {out_dir / 'scale_info.json'}")

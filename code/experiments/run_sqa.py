@@ -1,9 +1,9 @@
 """
-SQA (Simulated Quantum Annealing) 実験スクリプト。
+SQA (Simulated Quantum Annealing) experiment script.
 
-使い方:
+Usage:
     uv run python experiments/run_sqa.py
-    uv run python experiments/run_sqa.py --reads 100  # 動作確認用
+    uv run python experiments/run_sqa.py --reads 100  # for a quick smoke test
 """
 
 import argparse
@@ -13,14 +13,14 @@ from pathlib import Path
 
 import numpy as np
 
-# プロジェクトルートを sys.path に追加
+# Add the project root to sys.path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from src.graph import get_distances
 from src.solvers.sqa import SQASolver
 from experiments._pipeline import run_experiment
 
-# ===== パラメータ =====
+# ===== Parameters =====
 ALPHA = 0.3
 BETA = 0.55
 LAMBDA_ONEHOT = 13.0
@@ -29,15 +29,15 @@ LAMBDA_DIV = 1.0
 LAMBDA_ENTRY = 2.0
 LAMBDA_MOVE = 0.5
 SEED = None
-NUM_READS = 30_000   # 論文と同じ設定
-NUM_SWEEPS = 100     # 論文と同じ設定（OpenJij デフォルト 1000 ではないので注意）
+NUM_READS = 30_000   # same setting as in the manuscript
+NUM_SWEEPS = 100     # same setting as in the manuscript (note: not OpenJij's default of 1000)
 OUTPUT_DIR = Path("results/sqa_30k")
 
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--reads", type=int, default=NUM_READS, help="サンプル数 (default: 30000)")
-    parser.add_argument("--out", type=str, default=str(OUTPUT_DIR), help="出力ディレクトリ")
+    parser.add_argument("--reads", type=int, default=NUM_READS, help="number of samples (default: 30000)")
+    parser.add_argument("--out", type=str, default=str(OUTPUT_DIR), help="output directory")
     args = parser.parse_args()
 
     data_path = Path(__file__).resolve().parents[1] / "data" / "observations.json"

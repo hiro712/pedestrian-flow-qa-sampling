@@ -25,7 +25,7 @@ def _arr_hash(a: np.ndarray) -> str:
 
 
 def _safe_row_normalize(mat: np.ndarray, eps: float = 1e-12) -> np.ndarray:
-    """行方向に正規化（行和0ならその行は0のまま）。"""
+    """Row-normalize (rows whose sum is 0 stay 0)."""
     m = mat.astype(float)
     rowsum = m.sum(axis=1, keepdims=True)
     with np.errstate(divide="ignore", invalid="ignore"):
@@ -93,16 +93,17 @@ def _log_progress_files(
 
 
 # =========================
-# Transition matrix builder（距離は正規化済み前提）
+# Transition matrix builder (assumes distances are already normalized)
 # =========================
 def _build_transition_P(
     C_history: np.ndarray,  # (T,N)
-    distances: np.ndarray,  # (N+1,N+1) 正規化済み
+    distances: np.ndarray,  # (N+1,N+1) normalized
     alpha: float,
     beta: float,
 ) -> np.ndarray:
     """
-    直近期の割合 p_prev と距離・人気で重み W を作り、行正規化して P を返す（外部=0）。
+    Build weights W from the most recent proportions p_prev, distance, and
+    popularity, then row-normalize to return P (outside = 0).
     """
     T, N = C_history.shape
     Np = N + 1
@@ -118,14 +119,14 @@ def _build_transition_P(
     prev_idx = -2 if T >= 2 else -1
     p_prev = np.concatenate(([delta_plus], p_hist[prev_idx] * (1.0 - delta_plus)))
 
-    # α・β 適用
+    # Apply alpha/beta
     W = np.exp(-alpha * distances) * (p_prev[None, :] ** beta)
     P = _safe_row_normalize(W)
     return P
 
 
 # =========================
-# QUBO & Sampling（軌跡長は T = C_history.shape[0]）
+# QUBO & sampling (trajectory length is T = C_history.shape[0])
 # =========================
 def _sample_trajectories(
     P: np.ndarray,
@@ -139,7 +140,8 @@ def _sample_trajectories(
     num_reads: int,
 ) -> Tuple[List[List[int]], float]:
     """
-    QUBO を構築し OpenJij でサンプリング。長さ T_steps の軌跡と One-Hot 違反率を返す。
+    Build the QUBO and sample with OpenJij. Returns trajectories of length
+    T_steps and the one-hot violation rate.
     """
     Np = P.shape[0]
     Q: Dict[Tuple[int, int], float] = {}
@@ -154,7 +156,7 @@ def _sample_trajectories(
         for key, raw_val in base_dict.items():
             Q[key] = Q.get(key, 0.0) + lam * (raw_val / max_abs)
 
-    # One-Hot（同時刻で複数選択を罰。0個or1個は許容）
+    # One-hot (penalize multiple selections at the same time step; 0 or 1 is allowed)
     base_onehot: Dict[Tuple[int, int], float] = {}
     for t in range(T_steps):
         for i in range(Np):
@@ -164,7 +166,7 @@ def _sample_trajectories(
                 )
     apply_normalized(base_onehot, lambda_onehot)
 
-    # P 嗜好（i at t-1 → j at t に -P[i,j]）
+    # P preference (-P[i,j] for i at t-1 -> j at t)
     base_P: Dict[Tuple[int, int], float] = {}
     for t in range(1, T_steps):
         for i in range(Np):
@@ -174,7 +176,7 @@ def _sample_trajectories(
                 )
     apply_normalized(base_P, lambda_P)
 
-    # 分散（同一エリアに偏らない）
+    # Dispersion (avoid bias toward the same area)
     avg_visits = T_steps / Np
     base_div: Dict[Tuple[int, int], float] = {}
     for i in range(Np):
@@ -186,7 +188,7 @@ def _sample_trajectories(
                 base_div[(ii, jj)] = base_div.get((ii, jj), 0.0) + 2.0
     apply_normalized(base_div, lambda_div)
 
-    # 外部(0)の出入り抑制
+    # Suppress toggling in/out of the outside node (0)
     base_entry: Dict[Tuple[int, int], float] = {}
     for t in range(T_steps - 1):
         ii = idx(0, t)
@@ -196,7 +198,7 @@ def _sample_trajectories(
         base_entry[(ii, jj)] = base_entry.get((ii, jj), 0.0) - 2.0
     apply_normalized(base_entry, lambda_entry)
 
-    # 内部移動の平滑化
+    # Smoothing of internal moves
     base_move: Dict[Tuple[int, int], float] = {}
     for i in range(1, Np):
         for t in range(T_steps - 1):
@@ -207,7 +209,7 @@ def _sample_trajectories(
             base_move[(ii, jj)] = base_move.get((ii, jj), 0.0) - 2.0
     apply_normalized(base_move, lambda_move)
 
-    # サンプリング
+    # Sampling
     # bqm = dimod.BinaryQuadraticModel.from_qubo(Q)
     # sampler = oj.SASampler()
     # sampleset = sampler.sample(bqm, num_reads=num_reads, seed=seed, num_sweeps=100)
@@ -226,7 +228,7 @@ def _sample_trajectories(
 
     from dotenv import load_dotenv
 
-    load_dotenv(dotenv_path=".env.local")  # .env.local から環境変数を読み込む
+    load_dotenv(dotenv_path=".env.local")  # load environment variables from .env.local
     print("DWAVE_SOLVER_NAME:", os.getenv("DWAVE_SOLVER_NAME"))
     solver = QASolver()
     sample_config: Dict[str, Any] = {
@@ -237,12 +239,12 @@ def _sample_trajectories(
         sample_config["seed"] = seed
     sampleset = solver.solve(Q, sample_config=sample_config)
 
-    # ---------- ここから追加：乱択デコーダ／One-Hot修正／エネルギー再計算用ヘルパ ----------
-    # 乱択用RNG（seed指定で再現可能）
+    # ---------- Added below: helpers for random decoding / one-hot repair / energy recomputation ----------
+    # RNG for random tie-breaking (reproducible via seed)
     rng = np.random.default_rng(seed)
 
     def _decode_traj(sample: Dict[int, int]) -> List[int]:
-        """同時刻に1が複数ならランダム、0個なら外部(0)"""
+        """Random choice if multiple 1s at the same time step; outside (0) if none."""
         traj = []
         for t in range(T_steps):
             actives = [i for i in range(Np) if sample.get(idx(i, t), 0) == 1]
@@ -256,8 +258,9 @@ def _sample_trajectories(
         return traj
 
     def _fix_sample_onehot(sample: Dict[int, int]) -> Dict[int, int]:
-        """One-Hot違反(=同時刻で2個以上1)の箇所だけ乱択で1つ残し、他は0に直す。
-        0個 or 1個は変更しない（=違反ではない）。"""
+        """For each one-hot violation (2 or more 1s at the same time step),
+        keep one at random and set the rest to 0. Leaves 0 or 1 active
+        unchanged (not a violation)."""
         fixed = dict(sample)
         for t in range(T_steps):
             actives = [i for i in range(Np) if sample.get(idx(i, t), 0) == 1]
@@ -268,28 +271,28 @@ def _sample_trajectories(
         return fixed
 
     def _qubo_energy(sample: Dict[int, int]) -> float:
-        """Q（正規化後QUBO）に対するエネルギーを再計算。"""
+        """Recompute the energy against Q (the normalized QUBO)."""
         e = 0.0
         for (u, v), w in Q.items():
             e += w * sample.get(u, 0) * sample.get(v, 0)
         return float(e)
 
-    # ---------- 追加ここまで -----------------------------------------------------
+    # ---------- End of added section -----------------------------------------------------
 
-    # samplesetをJSON保存（to_serializable()で全データを保存）
+    # Save the sampleset as JSON (to_serializable() saves all data)
     sampleset_data = sampleset.to_serializable()
     with open("sampleset.json", "w", encoding="utf-8") as f:
         json.dump(sampleset_data, f, ensure_ascii=False, indent=2)
 
-    # 軌跡CSV保存（乱択タイブレーク/空欄は外部0）
+    # Save the trajectory CSV (random tie-break; empty -> outside 0)
     with open("traj.csv", "w", newline="") as f:
         writer = csv.writer(f)
         for sample in sampleset.samples():
             traj = _decode_traj(dict(sample))
             writer.writerow(traj)
 
-    # エネルギー分布
-    # (A) QAハードウェアが返すエネルギー（参考） + 互換用に従来ファイル名も保存
+    # Energy distribution
+    # (A) energy reported by the QA hardware (for reference); also saved under the legacy filename for compatibility
     hw_energies = sampleset.record.energy
     plt.figure()
     plt.hist(hw_energies, bins=50)
@@ -297,10 +300,10 @@ def _sample_trajectories(
     plt.ylabel("Frequency")
     plt.title("Sampling Energy Histogram (hardware)")
     plt.savefig("energy_histogram_hw.png")
-    plt.savefig("energy_histogram.png")  # 互換維持：従来ファイル名
+    plt.savefig("energy_histogram.png")  # kept for compatibility: legacy filename
     plt.close()
 
-    # (B) 正規化後QUBO Q に対して「元サンプル」と「One-Hot修正サンプル」を再計算し重ね描き
+    # (B) recompute and overlay "raw sample" and "one-hot-repaired sample" energies against the normalized QUBO Q
     raw_energies_recalc = np.array(
         [_qubo_energy(dict(sample)) for sample in sampleset.samples()], dtype=float
     )
@@ -313,7 +316,7 @@ def _sample_trajectories(
     )
 
     all_vals = np.concatenate([raw_energies_recalc, fixed_energies_recalc])
-    # 同一値しかないケースにも対応
+    # Also handle the case where all values are identical
     vmin, vmax = float(all_vals.min()), float(all_vals.max())
     bins_arg: Any
     if np.isclose(vmin, vmax):
@@ -336,7 +339,7 @@ def _sample_trajectories(
     plt.savefig("energy_histogram_overlay.png")
     plt.close()
 
-    # (C) Fixedだけのヒストグラム
+    # (C) histogram of Fixed only
     plt.figure()
     plt.hist(fixed_energies_recalc, bins=50, alpha=0.8)
     plt.xlabel("Energy (recomputed on normalized QUBO)")
@@ -345,7 +348,7 @@ def _sample_trajectories(
     plt.savefig("energy_histogram_fixed.png")
     plt.close()
 
-    # One-Hot違反率（0個 or 1個はOK、2個以上は違反）
+    # One-hot violation rate (0 or 1 is OK, 2+ is a violation)
     violations = 0
     total_slots = 0
     for sample in sampleset.samples():
@@ -356,7 +359,7 @@ def _sample_trajectories(
                 violations += 1
     violation_rate = violations / total_slots if total_slots else 0.0
 
-    # 軌跡リスト（CSVと同じ乱択デコード）
+    # Trajectory list (same random decoding as the CSV)
     traj_list: List[List[int]] = []
     for sample in sampleset.samples():
         traj_list.append(_decode_traj(dict(sample)))
@@ -370,10 +373,11 @@ def _sample_trajectories(
 def _reconstruct_proportions_from_trajs(
     traj_list: List[List[int]],
     T_steps: int,
-    N: int,  # 内部エリア数（外部を除く）
+    N: int,  # number of internal areas (excluding outside)
 ) -> np.ndarray:
     """
-    サンプリング軌跡から各時刻の内部エリア割合 p' (T×N) を復元。
+    Reconstruct the internal-area proportions p' (T x N) at each time step
+    from the sampled trajectories.
     """
     num_samples = len(traj_list)
     if num_samples == 0:
@@ -384,20 +388,21 @@ def _reconstruct_proportions_from_trajs(
         for t in range(T_steps):
             u = traj[t]
             if 1 <= u <= N:
-                counts[t, u - 1] += 1.0  # 内部は1..N → 0..N-1
+                counts[t, u - 1] += 1.0  # internal zones 1..N -> 0..N-1
 
     p_prime = counts / float(num_samples)
     return p_prime
 
 
 # =========================
-# Grid runner（p vs p' 最小化）
+# Grid runner (minimizes p vs p')
 # =========================
 def _load_history_cache(
     history_csv: str, stage_name: str
 ) -> Dict[Tuple[float, float], Dict[str, Any]]:
     """
-    history.csvから既存データを読み込み、(alpha, beta) -> {loss, rmse, ...} の辞書を返す。
+    Load existing data from history.csv and return a dict mapping
+    (alpha, beta) -> {loss, rmse, ...}.
     """
     cache: Dict[Tuple[float, float], Dict[str, Any]] = {}
     if not os.path.exists(history_csv):
@@ -430,7 +435,7 @@ def _load_history_cache(
 def _run_grid(
     stage_name: str,
     C_history: np.ndarray,  # (T,N)
-    distances: np.ndarray,  # (N+1,N+1) 正規化済み
+    distances: np.ndarray,  # (N+1,N+1) normalized
     lambda_onehot: float,
     lambda_P: float,
     lambda_div: float,
@@ -444,17 +449,18 @@ def _run_grid(
     history_csv: str = "history.csv",
 ) -> Tuple[float, float, float, float, Dict[str, Any]]:
     """
-    指定グリッドで p と p'（行正規化した割合）の二乗和 LOSS と RMSE を最小化。
-    history.csvに既存データがあれば、それを使ってスキップする。
+    Minimize the sum-of-squares LOSS and RMSE between p and p' (row-normalized
+    proportions) over the given grid. Skips entries already present in
+    history.csv.
     """
     if progress_cb is None:
         progress_cb = _default_progress_cb
 
     T, N = C_history.shape
     T_steps = T
-    p_true = _safe_row_normalize(C_history)  # 行正規化（割合）
+    p_true = _safe_row_normalize(C_history)  # row-normalized (proportions)
 
-    # 既存データを読み込む
+    # Load existing data
     cached_results = _load_history_cache(history_csv, stage_name)
     print(
         f"[{stage_name}] Loaded {len(cached_results)} cached results from {history_csv}"
@@ -465,7 +471,7 @@ def _run_grid(
     best = {"alpha": None, "beta": None, "loss": float("inf"), "rmse": float("inf")}
     history = []
 
-    # キャッシュからベスト値を復元
+    # Restore the best value from cache
     for (a, b), result in cached_results.items():
         loss = result["loss"]
         rmse = result["rmse"]
@@ -490,14 +496,14 @@ def _run_grid(
         for b in betas:
             step += 1
 
-            # キャッシュにあればスキップ
+            # Skip if present in cache
             if (a, b) in cached_results:
                 result = cached_results[(a, b)]
                 print(f"[{stage_name}] Skipping {step}/{total} α={a}, β={b} (cached)")
                 continue
             # 1) P
             P = _build_transition_P(C_history, distances, a, b)
-            # 2) サンプリング → 軌跡
+            # 2) Sample -> trajectories
             traj_list, viol = _sample_trajectories(
                 P,
                 T_steps,
@@ -509,14 +515,14 @@ def _run_grid(
                 seed,
                 num_reads,
             )
-            # 3) p' を復元
+            # 3) Reconstruct p'
             p_prime = _reconstruct_proportions_from_trajs(traj_list, T_steps, N)
-            # 4) 損失（p vs p' の二乗和）＆ RMSE
+            # 4) Loss (sum of squares of p vs p') & RMSE
             diff = p_true - p_prime
             loss = float(np.sum(diff**2))
             rmse = float(np.sqrt(loss / diff.size))
 
-            # 進捗通知 & ログ
+            # Progress notification & logging
             info = {
                 "when": _now(),
                 "stage": stage_name,
@@ -553,11 +559,11 @@ def _run_grid(
 
 
 # =========================
-# 2段階探索：Stage1(広く粗く) → Stage2(局所で細かく)
+# Two-stage search: Stage1 (wide and coarse) -> Stage2 (fine-grained locally)
 # =========================
 def optimize_alpha_beta_two_stage(
     C_history: np.ndarray,
-    distances: np.ndarray,  # 正規化済み前提
+    distances: np.ndarray,  # assumed already normalized
     lambda_onehot: float,
     lambda_P: float,
     lambda_div: float,
@@ -565,10 +571,10 @@ def optimize_alpha_beta_two_stage(
     lambda_move: float,
     seed: Optional[int],
     num_reads: int,
-    # Stage1（広く粗く）
+    # Stage1 (wide and coarse)
     alphas_stage1: Optional[List[float]] = None,
     betas_stage1: Optional[List[float]] = None,
-    # Stage2（局所で細かく）±幅と刻み
+    # Stage2 (fine-grained locally): +- window and step
     stage2_alpha_window: float = 0.6,
     stage2_alpha_step: float = 0.1,
     stage2_beta_window: float = 0.6,
@@ -577,13 +583,14 @@ def optimize_alpha_beta_two_stage(
     cache_path: str = "alpha_beta_cache.json",
 ) -> Tuple[float, float, float, float, Dict[str, Any]]:
     """
-    自動2段階探索で (α,β) を最適化（p と p′ の LOSS/RMSE 最小化）。
-    戻り値: (alpha*, beta*, best_loss, best_rmse, meta)
+    Optimize (alpha, beta) via an automatic two-stage search (minimizing
+    LOSS/RMSE between p and p').
+    Returns: (alpha*, beta*, best_loss, best_rmse, meta)
     """
     if progress_cb is None:
         progress_cb = _default_progress_cb
 
-    # Stage1 デフォルト（広く粗く）— numpy.float64 → float にして型整合
+    # Stage1 defaults (wide and coarse) -- cast numpy.float64 -> float for type consistency
     if alphas_stage1 is None:
         alphas_stage1 = list(map(float, np.arange(0.0, 6.0 + 1e-9, 0.5)))
     if betas_stage1 is None:
@@ -607,7 +614,7 @@ def optimize_alpha_beta_two_stage(
         history_csv="history.csv",
     )
 
-    # Stage2 グリッド（ベスト周辺を細かく）
+    # Stage2 grid (fine-grained around the best point)
     a_lo = max(0.0, a1 - stage2_alpha_window)
     a_hi = a1 + stage2_alpha_window
     b_lo = max(0.1, b1 - stage2_beta_window)
@@ -633,7 +640,7 @@ def optimize_alpha_beta_two_stage(
         history_csv="history.csv",
     )
 
-    # キャッシュ保存（C,D,探索条件付き）
+    # Save to cache (keyed by C, D, and the search conditions)
     key = {
         "C_hash": _arr_hash(C_history),
         "D_hash": _arr_hash(distances),
@@ -682,7 +689,7 @@ def optimize_alpha_beta_two_stage(
     with open(cache_path, "w", encoding="utf-8") as f:
         json.dump(cache, f, ensure_ascii=False, indent=2)
 
-    # 完了通知
+    # Completion notification
     progress_cb(
         {
             "when": _now(),
@@ -719,11 +726,11 @@ def optimize_alpha_beta_two_stage(
 
 
 # =========================
-# Main prediction（αβ未指定→自動2段階探索）
+# Main prediction (alpha/beta unspecified -> automatic two-stage search)
 # =========================
 def predict_flow_percent(
     C_history: np.ndarray,  # (T,N)
-    distances: np.ndarray,  # (N+1,N+1) 正規化済み
+    distances: np.ndarray,  # (N+1,N+1) normalized
     lambda_onehot: float,
     lambda_P: float,
     lambda_div: float,
@@ -731,25 +738,27 @@ def predict_flow_percent(
     lambda_move: float,
     seed: Optional[int],
     num_reads: int,
-    # α,β を指定可能（未指定なら自動2段階探索）
+    # alpha, beta can be specified (auto two-stage search if unspecified)
     alpha: Optional[float] = None,
     beta: Optional[float] = None,
-    # Stage1/Stage2 のパラメータ（必要なら上書き）
+    # Stage1/Stage2 parameters (override if needed)
     alphas_stage1: Optional[List[float]] = None,
     betas_stage1: Optional[List[float]] = None,
     stage2_alpha_window: float = 0.6,
     stage2_alpha_step: float = 0.1,
     stage2_beta_window: float = 0.6,
     stage2_beta_step: float = 0.05,
-    # 進捗コールバック
+    # Progress callback
     progress_cb: Optional[Callable[[Dict[str, Any]], None]] = None,
-    # キャッシュファイル
+    # Cache file
     cache_path: str = "alpha_beta_cache.json",
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, Tuple[float, float], Dict[str, Any]]:
     """
-    量子アニーリングで個人経路をサンプリングし、P・F・p′ を返す。
-    α,β 未指定時は「広く粗く→局所で細かく」の自動2段階探索で p と p′ のズレ最小化。
-    戻り値: (P, F, p_prime, (alpha,beta), meta)
+    Sample individual trajectories via quantum annealing and return P, F, p'.
+    When alpha, beta are unspecified, minimizes the discrepancy between p and
+    p' via an automatic "wide and coarse -> fine-grained locally" two-stage
+    search.
+    Returns: (P, F, p_prime, (alpha,beta), meta)
     """
     if progress_cb is None:
         progress_cb = _default_progress_cb
@@ -757,7 +766,7 @@ def predict_flow_percent(
     T, N = C_history.shape
     T_steps = T
 
-    # 行正規化した真の割合 p_true を常に計算しておく
+    # Always precompute the row-normalized true proportions p_true
     p_true = _safe_row_normalize(C_history)
 
     best_loss = None
@@ -805,10 +814,10 @@ def predict_flow_percent(
     else:
         two_stage_meta = {}
 
-    # 最終 P
+    # Final P
     P = _build_transition_P(C_history, distances, alpha, beta)
 
-    # サンプリング → F と p′
+    # Sampling -> F and p'
     traj_list, violation_rate = _sample_trajectories(
         P,
         T_steps,
@@ -820,7 +829,7 @@ def predict_flow_percent(
         seed,
         num_reads,
     )
-    # p' を再構成して損失を計算
+    # Reconstruct p' and compute the loss
     p_prime_tmp = _reconstruct_proportions_from_trajs(traj_list, T_steps, N)
     diff_tmp = p_true - p_prime_tmp
     loss_final = float(np.sum(diff_tmp**2))
@@ -844,7 +853,7 @@ def predict_flow_percent(
         }
     )
 
-    # フロー F（u->v の頻度を行正規化）
+    # Flow F (row-normalized counts of u->v transitions)
     Np = P.shape[0]
     F_counts = np.zeros((Np, Np))
     for traj in traj_list:
@@ -854,15 +863,15 @@ def predict_flow_percent(
             F_counts[u, v] += 1
     F = _safe_row_normalize(F_counts)
 
-    # p′ 復元（割合）
-    # 先に計算した p_prime_tmp があるはずなので再利用
+    # Reconstruct p' (proportions)
+    # Reuse p_prime_tmp computed earlier, if available
     p_prime = (
         _reconstruct_proportions_from_trajs(traj_list, T_steps, N)
         if "p_prime_tmp" not in locals()
         else p_prime_tmp
     )
 
-    # 保存
+    # Save
     results = {
         "C": C_history.tolist(),
         "p_true": _safe_row_normalize(C_history).tolist(),
@@ -871,7 +880,7 @@ def predict_flow_percent(
         "F": F.tolist(),
         "alpha": alpha,
         "beta": beta,
-        # best_* は探索で得た最良値。未探索（ユーザ指定）の場合は今回の値を入れる
+        # best_* is the best value found by the search. If not searched (user-specified), use this run's value
         "best_loss": (
             best_loss if best_loss is not None else float(round(loss_final, 6))
         ),

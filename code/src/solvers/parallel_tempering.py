@@ -1,26 +1,29 @@
 """
-M4 査読対応: 古典的サンプリングベースラインとしての Parallel Tempering
-（交換モンテカルロ法 / レプリカ交換法）。
+M4 review response: Parallel Tempering (replica-exchange Monte Carlo) as a
+classical sampling baseline.
 
-複数の逆温度 beta を持つレプリカを並行してシングルスピンフリップ
-Metropolis 更新で走らせ、隣接レプリカ間で周期的に状態を交換することで
-低温分布からの効率的なサンプリングを実現する古典的手法。
+Multiple replicas, each held at a different inverse temperature beta, are run
+in parallel with single-spin-flip Metropolis updates; adjacent replicas
+periodically exchange states, which is the classical technique for efficient
+sampling from a low-temperature distribution.
 
-QUBO E(x) = x^T W x （W は対称行列、対角=線形項）に対し、
-1スピンフリップのエネルギー差分は
+For a QUBO E(x) = x^T W x (W symmetric, diagonal = linear terms), the
+single-spin-flip energy difference has the closed form
 
     dE_k = W[k,k] + 2*(1 - 2*x_k) * (W @ x)[k]
 
-で閉形式に求まるため、場ベクトル f = W @ x を逐次更新しながら
-全レプリカを ndarray でベクトル化して同時に更新する。
+so we incrementally update the field vector f = W @ x and vectorize all
+replicas together as an ndarray.
 
-査読2 FB1対応（大関先生からの「レプリカ選択・温度ラダー設計はフェアか」という
-指摘への回答）: PT は交換法により全レプリカが周期的に交換されるため、最低温
-レプリカ（index 0）以外の中間温度レプリカも追加コストなしで利用可能である。
-`run_all_replicas()` はこの点を検証するため、収集ステップで全レプリカの
-サンプルを保存する（`ParallelTemperingSolver.solve()` と同一のダイナミクス）。
-`experiments/run_pt.py` はこれを使って全レプリカを評価し、10-fold CV で
-（後知恵選択にならないよう）レプリカ温度を選択する。
+Round-2 review FB1 response (to Prof. Ohzeki's question of whether the
+replica selection / temperature-ladder design was fair): because PT
+periodically exchanges all replicas, the intermediate-temperature replicas
+are available at no extra cost beyond the coldest one (index 0).
+`run_all_replicas()` exists to examine this: it saves samples from every
+replica during the collection step (using the same dynamics as
+`ParallelTemperingSolver.solve()`). `experiments/run_pt.py` uses it to
+evaluate all replicas and select a replica temperature via 10-fold CV (so
+the choice isn't made with hindsight).
 """
 
 from __future__ import annotations
@@ -35,7 +38,7 @@ from src.solvers.base import Qubo, SampleConfig, SolverBase
 
 
 def _qubo_to_dense(Q: Qubo) -> tuple[np.ndarray, list]:
-    """QUBO 辞書を対称行列 W (E(x) = x^T W x) と変数ラベル一覧に変換する。"""
+    """Convert a QUBO dict into a symmetric matrix W (E(x) = x^T W x) and a list of variable labels."""
     labels = sorted({u for k in Q for u in k} | {v for k in Q for v in k})
     label_to_idx = {lab: i for i, lab in enumerate(labels)}
     n = len(labels)
@@ -63,19 +66,20 @@ def run_all_replicas(
     seed: int | None = 3,
 ) -> dict:
     """
-    Parallel Tempering を1回実行し、全レプリカ分のサンプルを収集する。
+    Run Parallel Tempering once and collect samples from every replica.
 
-    `ParallelTemperingSolver.solve()` と同一のダイナミクス（sweep / レプリカ
-    交換）を用いる。違いは、収集ステップで最低温レプリカ `X[0]` だけでなく
-    全レプリカ `X[:]` を保存する点のみ。
+    Uses the same dynamics (sweep / replica exchange) as
+    `ParallelTemperingSolver.solve()`. The only difference is that the
+    collection step saves all replicas `X[:]`, not just the coldest
+    replica `X[0]`.
 
     Returns
     -------
     dict with keys:
-        "labels": 変数ラベル一覧
-        "betas": (n_replicas,) 各レプリカの逆温度（index 0 が最低温 = beta_max）
-        "samples": (n_replicas, num_reads, n_vars) の 0/1 配列
-        "energies": (n_replicas, num_reads) のエネルギー配列
+        "labels": list of variable labels
+        "betas": (n_replicas,) inverse temperature of each replica (index 0 is coldest = beta_max)
+        "samples": (n_replicas, num_reads, n_vars) array of 0/1 values
+        "energies": (n_replicas, num_reads) array of energies
     """
     rng = np.random.default_rng(seed)
     W, labels = _qubo_to_dense(Q)
@@ -117,13 +121,13 @@ def run_all_replicas(
                     F[[i, j]] = F[[j, i]]
                     E[[i, j]] = E[[j, i]]
 
-    # --- バーンイン ---
+    # --- Burn-in ---
     for sweep_idx in range(n_sweeps_burn_in):
         sweep()
         if sweep_idx % swap_interval == 0:
             attempt_swaps()
 
-    # --- サンプル収集（全レプリカ）---
+    # --- Sample collection (all replicas) ---
     collected = np.empty((num_reads, n_replicas, n), dtype=np.int8)
     collected_E = np.empty((num_reads, n_replicas), dtype=float)
     sweep_idx = 0
@@ -150,20 +154,20 @@ def run_all_replicas(
 
 class ParallelTemperingSolver(SolverBase):
     """
-    Parameters (sample_config 経由で指定可能)
+    Parameters (settable via sample_config)
     ----------
     num_reads : int
-        収集する総サンプル数
+        Total number of samples to collect
     n_replicas : int
-        レプリカ数（既定 8）
+        Number of replicas (default 8)
     beta_min, beta_max : float
-        逆温度ラダーの範囲（対数等間隔; 既定 0.01 — 50.0）
+        Range of the inverse-temperature ladder (log-spaced; default 0.01 - 50.0)
     n_sweeps_burn_in : int
-        サンプル収集前のバーンイン掃引数
+        Number of burn-in sweeps before sample collection
     sweeps_per_sample : int
-        サンプル間の間引き掃引数（自己相関低減）
+        Number of thinning sweeps between samples (to reduce autocorrelation)
     swap_interval : int
-        レプリカ交換を試みる間隔（掃引数）
+        Interval (in sweeps) at which replica exchange is attempted
     seed : int | None
     """
 
@@ -194,11 +198,11 @@ class ParallelTemperingSolver(SolverBase):
         n = len(labels)
         diagW = np.diag(W).copy()
 
-        # レプリカ初期化（ランダム binary 状態）
+        # Initialize replicas (random binary state)
         X = rng.integers(0, 2, size=(n_replicas, n)).astype(np.int8)
         F = X.astype(float) @ W  # f_r = W @ x_r  (n_replicas, n)
 
-        # 逆温度ラダー（対数等間隔; index 0 = 最も低温=高 beta）
+        # Inverse-temperature ladder (log-spaced; index 0 = coldest = highest beta)
         betas = np.geomspace(beta_max, beta_min, n_replicas)
 
         def energies() -> np.ndarray:
@@ -222,7 +226,7 @@ class ParallelTemperingSolver(SolverBase):
         def attempt_swaps() -> None:
             nonlocal X, F
             E = energies()
-            # 隣接レプリカ間で交換 (i, i+1), i = 0,2,4,... と 1,3,5,... を交互に
+            # Exchange adjacent replicas (i, i+1), alternating between i = 0,2,4,... and 1,3,5,...
             for offset in (0, 1):
                 for i in range(offset, n_replicas - 1, 2):
                     j = i + 1
@@ -232,13 +236,13 @@ class ParallelTemperingSolver(SolverBase):
                         F[[i, j]] = F[[j, i]]
                         E[[i, j]] = E[[j, i]]
 
-        # --- バーンイン ---
+        # --- Burn-in ---
         for sweep_idx in range(n_burn):
             sweep()
             if sweep_idx % swap_interval == 0:
                 attempt_swaps()
 
-        # --- サンプル収集（最も低温=ターゲット分布のレプリカ index 0 から）---
+        # --- Sample collection (from the coldest = target-distribution replica, index 0) ---
         collected = []
         collected_E = []
         sweep_idx = 0

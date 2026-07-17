@@ -1,7 +1,7 @@
 """
-Fig 1: 会場グラフの可視化（ノード・エッジ・距離重み）。
+Fig 1: visualization of the venue graph (nodes, edges, distance weights).
 
-使い方:
+Usage:
     uv run python figures/fig_graph.py
     uv run python figures/fig_graph.py --out figures/out/
 """
@@ -28,7 +28,7 @@ def plot_graph(out_dir: Path) -> None:
 
     fig, ax = plt.subplots(figsize=(14, 10))
 
-    # ノード（外部=0 を別色）
+    # Nodes (outside = 0 in a different color)
     internal = [n for n in G.nodes() if n != 0]
     nx.draw_networkx_nodes(G, pos, nodelist=[0], node_color="salmon",
                            node_size=1200, alpha=0.9, ax=ax)

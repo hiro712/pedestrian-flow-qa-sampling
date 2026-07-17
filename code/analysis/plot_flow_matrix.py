@@ -1,7 +1,7 @@
 """
-フロー行列 F のヒートマップを生成する。
+Generate a heatmap of the flow matrix F.
 
-使い方:
+Usage:
     uv run python analysis/plot_flow_matrix.py results/sqa_30k/results.json
 """
 

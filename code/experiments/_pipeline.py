@@ -1,6 +1,6 @@
 """
-実験共通パイプライン。
-各 run_*.py スクリプトからインポートして使う。
+Common experiment pipeline.
+Imported and used by each run_*.py script.
 """
 
 from __future__ import annotations
@@ -39,10 +39,11 @@ def run_experiment(
     solver_name: str,
 ) -> dict:
     """
-    1回の実験を実行し、results.json 等を output_dir に保存して結果 dict を返す。
+    Run a single experiment, save results.json etc. to output_dir, and
+    return the results dict.
 
-    num_sweeps: SA/SQA の sweep 数。None の場合はソルバーのデフォルト値を使用。
-                論文では num_sweeps=100 を使用。QA (D-Wave) には不要。
+    num_sweeps: number of SA/SQA sweeps. Uses the solver's default when None.
+                The manuscript uses num_sweeps=100. Not needed for QA (D-Wave).
     """
     output_dir.mkdir(parents=True, exist_ok=True)
     T, N = C_history.shape
@@ -51,13 +52,13 @@ def run_experiment(
 
     p_true = _safe_row_normalize(C_history)
 
-    # 1. 遷移確率行列
+    # 1. Transition probability matrix
     P = build_transition_P(C_history, distances, alpha, beta)
 
-    # 2. QUBO 構築
+    # 2. Build the QUBO
     Q = build_qubo(P, T, lambda_onehot, lambda_P, lambda_div, lambda_entry, lambda_move)
 
-    # 3. サンプリング
+    # 3. Sampling
     print(f"[{solver_name}] Sampling {num_reads} reads …")
     cfg: dict = {"num_reads": num_reads}
     if num_sweeps is not None:
@@ -66,10 +67,10 @@ def run_experiment(
         cfg["seed"] = seed
     sampleset = solver.solve(Q, sample_config=cfg)
 
-    # 4. デコード
+    # 4. Decode
     traj_list = [decode_traj(dict(s), T, Np, rng) for s in sampleset.samples()]
 
-    # 5. 評価
+    # 5. Evaluate
     violation = compute_violation_rate(sampleset, T, Np)
     p_prime = reconstruct_proportions(traj_list, T, N)
     F = build_flow_matrix(traj_list, T, Np)
@@ -78,7 +79,7 @@ def run_experiment(
 
     print(f"[{solver_name}] violation_rate={violation:.4f}  RMSE={r:.6f}  loss={loss:.6f}")
 
-    # 6. ファイル保存
+    # 6. Save files
     save_results(sampleset, traj_list, Q, T, Np, output_dir)
 
     results = {
@@ -130,8 +131,8 @@ def run_gridsearch(
     history_csv: str = "history.csv",
 ) -> tuple[float, float, float, float]:
     """
-    (α, β) グリッドサーチを実行し、最良の (alpha, beta, loss, rmse) を返す。
-    history.csv にキャッシュして途中再開可能。
+    Run an (alpha, beta) grid search and return the best (alpha, beta, loss, rmse).
+    Cached in history.csv so the search can be resumed.
     """
     output_dir.mkdir(parents=True, exist_ok=True)
     history_path = output_dir / history_csv
@@ -140,7 +141,7 @@ def run_gridsearch(
     rng = np.random.default_rng(seed)
     p_true = _safe_row_normalize(C_history)
 
-    # キャッシュ読み込み
+    # Load cache
     cache: dict[tuple[float, float], dict] = {}
     if history_path.exists():
         with open(history_path, "r", encoding="utf-8") as f:
@@ -153,7 +154,7 @@ def run_gridsearch(
                     pass
         print(f"[gridsearch] Loaded {len(cache)} cached results.")
 
-    # CSV ヘッダー
+    # CSV header
     fields = ["alpha", "beta", "loss", "rmse", "violation_rate", "timestamp"]
     write_header = not history_path.exists()
     history_file = open(history_path, "a", newline="", encoding="utf-8")
@@ -163,7 +164,7 @@ def run_gridsearch(
 
     best_alpha, best_beta, best_loss, best_rmse = None, None, float("inf"), float("inf")
 
-    # キャッシュからベスト復元
+    # Restore the best result from cache
     for (a, b), res in cache.items():
         if res["loss"] < best_loss:
             best_alpha, best_beta, best_loss, best_rmse = a, b, res["loss"], res["rmse"]

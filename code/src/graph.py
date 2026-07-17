@@ -1,7 +1,7 @@
 import networkx as nx
 import numpy as np
 
-# 会場グラフ（ノード0=外部, 1-10=内部ゾーン）
+# Venue graph (node 0 = outside, 1-10 = internal zones)
 EDGES = [
     (8, 9, 20),
     (8, 0, 6),
@@ -18,14 +18,15 @@ EDGES = [
 
 def get_distances(normalize: bool = True, diag_ratio: float = 0.2) -> tuple[np.ndarray, float]:
     """
-    会場グラフの全対間最短経路距離行列を返す。
+    Return the all-pairs shortest-path distance matrix for the venue graph.
 
     Returns
     -------
     distances : ndarray, shape (11, 11)
-        ノード間距離行列（対角=平均距離×diag_ratio、中央値正規化済み）
+        Inter-node distance matrix (diagonal = mean distance x diag_ratio,
+        median-normalized).
     scale : float
-        正規化に使った中央値（normalize=False のとき 1.0）
+        Median value used for normalization (1.0 when normalize=False).
     """
     G = nx.Graph()
     G.add_weighted_edges_from(EDGES)

@@ -14,7 +14,7 @@ MAX_READS_PER_CALL = 5000
 
 
 class QASolver(SolverBase):
-    """D-Wave Advantage 実機ソルバー。.env.local から認証情報を読む。"""
+    """D-Wave Advantage hardware solver. Reads credentials from .env.local."""
 
     def __init__(self, use_greedy: bool = False):
         solver_name = os.getenv("DWAVE_SOLVER_NAME")

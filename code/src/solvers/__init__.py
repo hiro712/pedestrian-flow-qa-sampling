@@ -5,7 +5,7 @@ from src.solvers.qa import QASolver
 
 
 def get_solver(solver_type: str) -> SolverBase:
-    """ソルバー名から対応するインスタンスを返す。"""
+    """Return the solver instance corresponding to the given solver name."""
     if solver_type == "sa":
         return SASolver()
     elif solver_type == "sqa":

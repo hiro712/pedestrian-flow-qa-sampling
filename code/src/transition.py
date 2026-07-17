@@ -16,25 +16,26 @@ def build_transition_P(
     beta: float,
 ) -> np.ndarray:
     """
-    観測人数履歴 C_history (T×N) と距離行列から遷移確率行列 P (N+1, N+1) を構築する。
+    Build the transition probability matrix P (N+1, N+1) from the observed
+    headcount history C_history (T x N) and the distance matrix.
 
-    ノード0 = 外部（会場外）、ノード1..N = 内部ゾーン。
+    Node 0 = outside (outside the venue), nodes 1..N = internal zones.
 
     Parameters
     ----------
     C_history : ndarray (T, N)
-        各時刻・各内部ゾーンの観測人数
+        Observed headcount at each time step / internal zone
     distances : ndarray (N+1, N+1)
-        正規化済み距離行列
+        Normalized distance matrix
     alpha : float
-        距離減衰係数
+        Distance-decay coefficient
     beta : float
-        目的地人気度の指数
+        Destination-popularity exponent
 
     Returns
     -------
     P : ndarray (N+1, N+1)
-        行正規化された遷移確率行列
+        Row-normalized transition probability matrix
     """
     T, N = C_history.shape
     Np = N + 1

@@ -56,7 +56,7 @@ def main() -> None:
     # beta = None
 
     try:
-        if alpha is None or beta is None:  # グリッドサーチを実行
+        if alpha is None or beta is None:  # run grid search
             alphas_stage1 = [float(x) for x in np.arange(0.0, 6.0 + 1e-9, 0.5)]
             betas_stage1 = [float(x) for x in np.arange(0.3, 2.5 + 1e-9, 0.2)]
 
@@ -117,11 +117,11 @@ def main() -> None:
                 lambda_move=lambda_move,
                 seed=seed,
                 num_reads=num_reads,
-                alpha=a2,  # ← ここで確定値を渡す（Noneにしない）
+                alpha=a2,  # <- pass the fixed value here (not None)
                 beta=b2,
             )
 
-        else:  # 直接予測を実行
+        else:  # run prediction directly
             predict_flow_percent(
                 C_array,
                 dist_array,

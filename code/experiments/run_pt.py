@@ -1,26 +1,30 @@
 """
-Parallel Tempering（交換モンテカルロ法）実験スクリプト。
-M4 査読対応: 古典的サンプリングベースラインとの比較。
+Parallel Tempering (replica-exchange Monte Carlo) experiment script.
+M4 review response: comparison against a classical sampling baseline.
 
-査読2 FB1対応: 大関先生から「レプリカ選択・温度ラダー設計はフェアか」という
-指摘を受け、以下のパイプラインに変更した（旧版は最低温レプリカ index 0 の
-サンプルのみを report していたが、これは16レプリカ中ほぼ最悪の選択だった）。
+Round-2 review FB1 response: in response to Prof. Ohzeki's question of
+whether the replica selection / temperature-ladder design was fair, the
+pipeline was changed to the following (the previous version only reported
+samples from the coldest replica, index 0, which turned out to be close to
+the worst choice among the 16 replicas).
 
-  1. 全16レプリカのサンプルを収集する（`run_all_replicas`; 交換法により
-     全レプリカが周期的に交換されるため、中間温度レプリカも追加サンプリング
-     コストなしで利用可能）。
-  2. どのレプリカ（温度）を採用するかを、10-fold cross-validation で選択する
-     （RMSEに基づく後知恵選択にならないよう、train側9-foldで最良のレプリカを
-     選び、選択に使っていない残り1-foldだけで評価する; M5 の (alpha,beta)
-     選択と同じ発想）。
-  3. 全foldで選ばれたレプリカ（コンセンサス）の全 num_reads サンプルを、
-     他ソルバーと同一形式の results.json / sampleset.json / traj.csv として
-     保存する。10-fold CV の fold 別詳細（circularity-free な held-out 指標）
-     は cv_summary.json に保存する。
+  1. Collect samples from all 16 replicas (`run_all_replicas`; because the
+     exchange method periodically swaps all replicas, intermediate-
+     temperature replicas are available at no extra sampling cost).
+  2. Select which replica (temperature) to adopt via 10-fold
+     cross-validation (to avoid a hindsight selection based on RMSE, the
+     best replica is chosen using 9 training folds and evaluated only on
+     the held-out fold not used for selection; the same idea as the M5
+     (alpha, beta) selection).
+  3. Save the full num_reads samples of the replica selected across all
+     folds (the consensus) as results.json / sampleset.json / traj.csv, in
+     the same format used by the other solvers. The fold-by-fold detail of
+     the 10-fold CV (circularity-free held-out metrics) is saved to
+     cv_summary.json.
 
-使い方:
+Usage:
     uv run python experiments/run_pt.py
-    uv run python experiments/run_pt.py --reads 200 --cv-folds 5  # 動作確認用
+    uv run python experiments/run_pt.py --reads 200 --cv-folds 5  # for a quick smoke test
 """
 
 import argparse
@@ -43,7 +47,7 @@ from src.solvers.parallel_tempering import run_all_replicas
 from src.trajectory import compute_violation_rate, decode_traj, save_results
 from src.transition import build_transition_P, _safe_row_normalize
 
-# ===== パラメータ（SQA/SA と同一の QUBO 設定） =====
+# ===== Parameters (same QUBO settings as SQA/SA) =====
 ALPHA = 0.3
 BETA = 0.55
 LAMBDA_ONEHOT = 13.0
@@ -55,7 +59,7 @@ SEED = 3
 NUM_READS = 30_000
 OUTPUT_DIR = Path("results/pt_30k")
 
-# Parallel Tempering 固有設定（旧版と同一の対数等間隔ラダー）
+# Parallel Tempering-specific settings (same log-spaced ladder as the previous version)
 PT_CONFIG = {
     "n_replicas": 16,
     "beta_min": 0.05,
@@ -66,7 +70,7 @@ PT_CONFIG = {
 }
 
 K_FOLDS = 10
-CV_SEED = 12345  # fold分割専用のseed（PT本体のseed=SEEDとは独立）
+CV_SEED = 12345  # seed used only for the fold split (independent of the PT run's seed=SEED)
 
 
 def _rmse_for_indices(traj_all: list, idx: np.ndarray, T: int, N: int, p_true: np.ndarray) -> float:
@@ -87,7 +91,7 @@ def _select_replica_by_cv(
     num_reads: int,
     k_folds: int,
 ) -> dict:
-    """10-fold CV でレプリカ（温度）を選択し、fold別・集計済みの held-out 指標を返す。"""
+    """Select a replica (temperature) via 10-fold CV and return the per-fold and aggregated held-out metrics."""
     fold_rng = np.random.default_rng(CV_SEED)
     perm = fold_rng.permutation(num_reads)
     folds = np.array_split(perm, k_folds)
@@ -129,8 +133,8 @@ def _select_replica_by_cv(
     test_violations_arr = np.array(test_violations)
     test_unique_fracs_arr = np.array(test_unique_fracs)
 
-    # 全foldで一貫して同じレプリカが選ばれるはず（論文本文で報告している通り）。
-    # 念のため、最頻値をコンセンサスレプリカとして採用する。
+    # All folds should consistently select the same replica (as reported in
+    # the manuscript). As a safeguard, take the mode as the consensus replica.
     consensus_replica = int(np.bincount(selected_replicas).argmax())
 
     return {
@@ -201,7 +205,7 @@ def main() -> None:
         json.dump(cv, f, ensure_ascii=False, indent=2)
     print(f"[PT] CV summary saved to {output_dir}/cv_summary.json")
 
-    # --- コンセンサスレプリカの全サンプルを、他ソルバーと同一形式で保存する ---
+    # --- Save all samples of the consensus replica, in the same format as the other solvers ---
     num_occurrences = np.ones(args.reads, dtype=int)
     sampleset = dimod.SampleSet.from_samples(
         (samples[r_star], labels), vartype="BINARY",
