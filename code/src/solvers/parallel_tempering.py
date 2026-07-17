@@ -13,6 +13,14 @@ QUBO E(x) = x^T W x （W は対称行列、対角=線形項）に対し、
 
 で閉形式に求まるため、場ベクトル f = W @ x を逐次更新しながら
 全レプリカを ndarray でベクトル化して同時に更新する。
+
+査読2 FB1対応（大関先生からの「レプリカ選択・温度ラダー設計はフェアか」という
+指摘への回答）: PT は交換法により全レプリカが周期的に交換されるため、最低温
+レプリカ（index 0）以外の中間温度レプリカも追加コストなしで利用可能である。
+`run_all_replicas()` はこの点を検証するため、収集ステップで全レプリカの
+サンプルを保存する（`ParallelTemperingSolver.solve()` と同一のダイナミクス）。
+`experiments/run_pt.py` はこれを使って全レプリカを評価し、10-fold CV で
+（後知恵選択にならないよう）レプリカ温度を選択する。
 """
 
 from __future__ import annotations
@@ -40,6 +48,104 @@ def _qubo_to_dense(Q: Qubo) -> tuple[np.ndarray, list]:
             W[iu, iv] += w / 2.0
             W[iv, iu] += w / 2.0
     return W, labels
+
+
+def run_all_replicas(
+    Q: Qubo,
+    *,
+    num_reads: int = 30_000,
+    n_replicas: int = 16,
+    beta_min: float = 0.05,
+    beta_max: float = 60.0,
+    n_sweeps_burn_in: int = 3000,
+    sweeps_per_sample: int = 30,
+    swap_interval: int = 5,
+    seed: int | None = 3,
+) -> dict:
+    """
+    Parallel Tempering を1回実行し、全レプリカ分のサンプルを収集する。
+
+    `ParallelTemperingSolver.solve()` と同一のダイナミクス（sweep / レプリカ
+    交換）を用いる。違いは、収集ステップで最低温レプリカ `X[0]` だけでなく
+    全レプリカ `X[:]` を保存する点のみ。
+
+    Returns
+    -------
+    dict with keys:
+        "labels": 変数ラベル一覧
+        "betas": (n_replicas,) 各レプリカの逆温度（index 0 が最低温 = beta_max）
+        "samples": (n_replicas, num_reads, n_vars) の 0/1 配列
+        "energies": (n_replicas, num_reads) のエネルギー配列
+    """
+    rng = np.random.default_rng(seed)
+    W, labels = _qubo_to_dense(Q)
+    n = len(labels)
+    diagW = np.diag(W).copy()
+
+    X = rng.integers(0, 2, size=(n_replicas, n)).astype(np.int8)
+    F = X.astype(float) @ W
+
+    betas = np.geomspace(beta_max, beta_min, n_replicas)
+
+    def energies() -> np.ndarray:
+        return np.sum(X * F, axis=1)
+
+    def sweep() -> None:
+        nonlocal X, F
+        order = rng.permutation(n)
+        for k in order:
+            xk = X[:, k].astype(float)
+            dE = diagW[k] + 2.0 * (1.0 - 2.0 * xk) * F[:, k]
+            accept_prob = np.exp(np.clip(-betas * dE, -700, 700))
+            u = rng.random(n_replicas)
+            flip = u < accept_prob
+            if not flip.any():
+                continue
+            delta = np.where(flip, 1.0 - 2.0 * xk, 0.0)
+            X[flip, k] = 1 - X[flip, k]
+            F += delta[:, None] * W[k, :][None, :]
+
+    def attempt_swaps() -> None:
+        nonlocal X, F
+        E = energies()
+        for offset in (0, 1):
+            for i in range(offset, n_replicas - 1, 2):
+                j = i + 1
+                d = (betas[i] - betas[j]) * (E[i] - E[j])
+                if rng.random() < np.exp(min(0.0, d)):
+                    X[[i, j]] = X[[j, i]]
+                    F[[i, j]] = F[[j, i]]
+                    E[[i, j]] = E[[j, i]]
+
+    # --- バーンイン ---
+    for sweep_idx in range(n_sweeps_burn_in):
+        sweep()
+        if sweep_idx % swap_interval == 0:
+            attempt_swaps()
+
+    # --- サンプル収集（全レプリカ）---
+    collected = np.empty((num_reads, n_replicas, n), dtype=np.int8)
+    collected_E = np.empty((num_reads, n_replicas), dtype=float)
+    sweep_idx = 0
+    for r in range(num_reads):
+        for _ in range(sweeps_per_sample):
+            sweep()
+            sweep_idx += 1
+            if sweep_idx % swap_interval == 0:
+                attempt_swaps()
+        collected[r] = X
+        collected_E[r] = energies()
+
+    # (num_reads, n_replicas, n) -> (n_replicas, num_reads, n)
+    samples = np.transpose(collected, (1, 0, 2))
+    sample_energies = np.transpose(collected_E, (1, 0))
+
+    return {
+        "labels": labels,
+        "betas": betas,
+        "samples": samples,
+        "energies": sample_energies,
+    }
 
 
 class ParallelTemperingSolver(SolverBase):

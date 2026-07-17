@@ -214,7 +214,7 @@ DWAVE_API_TOKEN=your-token-here
 | `03_qa_hardware_baseline/results/qa_advantage2_30k/` | D-Wave Advantage2_system1.6 | 0.079481 | 95.1% | **論文記載値**（ソルバー廃止済み） |
 | `02_sa_baseline/results/sa_30k/` | SA | 0.088900 | 0.0% | 参考値 |
 | `02_sa_baseline/results/sa_gridsearch/` | SA + 2段階探索 | 0.069900 | 0.0% | α/β 自動決定 |
-| `04_classical_pt_baseline/results/pt_30k/` | Parallel Tempering | 0.191462 | 0.0% | 古典ベースライン（多様性が崩壊） |
+| `04_classical_pt_baseline/results/pt_30k/` | Parallel Tempering（温度をCVで選択） | 0.069184 | 0.6% | **論文記載値**（10-fold CVでレプリカ温度を選択; `cv_summary.json`参照） |
 | `05_dynamic_range_analysis/results/qa_autoscale_30k/` | D-Wave Advantage2_system1（手動スケーリング） | 0.106361 | 56.5% | 追加検証（M1） |
 | `06_gauge_averaging_srt/results/qa_srt_30k/` | D-Wave Advantage2_system1（SRT 100ゲージ） | 0.167999 | 51.5% | 追加検証（M2） |
 | `10_new_chip_rerun/results/qa_advantage2_system1_30k/` | D-Wave Advantage2_system1 | 0.092575 | 95.5% | 新チップでの再実行（M10補足） |

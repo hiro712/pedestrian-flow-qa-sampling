@@ -25,7 +25,7 @@ code/
 │       ├── sa.py                # SASolver (OpenJij SA)
 │       ├── sqa.py              # SQASolver (OpenJij SQA)
 │       ├── qa.py               # QASolver (D-Wave 実機)
-│       └── parallel_tempering.py # PTSolver（古典ベースライン, M4）
+│       └── parallel_tempering.py # PTSolver + run_all_replicas()（古典ベースライン, M4/FB1）
 │
 ├── experiments/                # 実行スクリプト（uv run python experiments/xxx.py）
 │   ├── _pipeline.py            # run_experiment(), run_gridsearch() — 共通パイプライン
@@ -35,7 +35,7 @@ code/
 │   ├── run_qa.py               # D-Wave 実機実験
 │   ├── run_qa_autoscale.py     # auto_scale=False + 手動係数スケーリング（M1）／新チップ再実行（10）
 │   ├── run_qa_srt.py           # spin-reversal transform / gauge averaging（M2）
-│   ├── run_pt.py               # Parallel Tempering 実験（M4）
+│   ├── run_pt.py               # Parallel Tempering 実験、レプリカ温度を10-fold CVで選択（M4/FB1）
 │   ├── m5_validation.py        # LOO-CV・感度分析・Bootstrap CI（M5）
 │   └── gridsearch.py           # α/β グリッドサーチ → 本番実験
 │
@@ -142,7 +142,7 @@ uv run python analysis/plot_edge_flow.py   ../experiments/01_sqa_baseline/result
 | `02_sa_baseline/results/sa_30k/` | SA | 0.0889 | 0% | 参考値 |
 | `02_sa_baseline/results/sa_gridsearch/` | SA + 2段階探索 | 0.0699 | 0% | α/β自動決定 |
 | `03_qa_hardware_baseline/results/qa_advantage2_30k/` | D-Wave Advantage2_system1.6 | 0.0795 | 95.1% | **論文記載値**（1.6 は廃止済み） |
-| `04_classical_pt_baseline/results/pt_30k/` | Parallel Tempering | 0.1915 | 0% | 古典ベースライン（多様性が崩壊, M4） |
+| `04_classical_pt_baseline/results/pt_30k/` | Parallel Tempering（温度をCVで選択） | 0.0692 | 0.6% | **論文記載値**（10-fold CVでレプリカ温度を選択, M4 FB1） |
 | `05_dynamic_range_analysis/results/qa_autoscale_30k/` | D-Wave Advantage2_system1（手動スケーリング） | 0.1064 | 56.5% | 追加検証（M1） |
 | `06_gauge_averaging_srt/results/qa_srt_30k/` | D-Wave Advantage2_system1（SRT 100ゲージ） | 0.1680 | 51.5% | 追加検証（M2） |
 | `07_hyperparameter_validation/results/m5_validation/` | — | LOO-CV 0.308±0.026 | — | 感度分析・Bootstrap CI（M5） |
