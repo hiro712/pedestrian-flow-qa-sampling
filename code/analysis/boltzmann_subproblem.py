@@ -29,6 +29,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import gzip
 import json
 import sys
 from itertools import product
@@ -36,6 +37,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+import dimod
 import numpy as np
 import matplotlib
 matplotlib.use("Agg")
@@ -132,16 +134,31 @@ def tv_distance(p: np.ndarray, q: np.ndarray) -> float:
 
 
 def load_full_sampleset(path: Path, Np: int, T_steps: int, t: int) -> np.ndarray:
-    """Read sampleset.json and return the (n_samples, Np) 0/1 array at time t."""
+    """Read sampleset.json(.gz) and return the (n_samples, Np) 0/1 array at time t."""
     print(f"  loading {path} (this may take a while for large files) ...")
-    with open(path, "r", encoding="utf-8") as f:
+    opener = gzip.open if path.suffix == ".gz" else open
+    with opener(path, "rt", encoding="utf-8") as f:
         d = json.load(f)
     cols = [idx(i, t, T_steps) for i in range(Np)]
-    n = len(d["samples"])
-    bits = np.zeros((n, Np), dtype=np.int8)
-    for row, sample in enumerate(d["samples"]):
-        for k, c in enumerate(cols):
-            bits[row, k] = sample.get(str(c), sample.get(c, 0))
+
+    if "version" in d:
+        # Current dimod SampleSet.to_serializable() schema (packed
+        # sample_data/vectors/sample_packed). Delegate decoding to dimod
+        # itself rather than parsing the packed representation by hand, so
+        # this keeps working across dimod's schema versions.
+        sampleset = dimod.SampleSet.from_serializable(d)
+        var_col = {v: i for i, v in enumerate(sampleset.variables)}
+        col_idx = [var_col[c] for c in cols]
+        bits = sampleset.record.sample[:, col_idx].astype(np.int8)
+    else:
+        # Legacy pre-"version"-schema dump: a flat
+        # {"samples": [...], "energies": [...], "num_occurrences": [...]} dict
+        # where each sample is a plain {variable: value} mapping.
+        n = len(d["samples"])
+        bits = np.zeros((n, Np), dtype=np.int8)
+        for row, sample in enumerate(d["samples"]):
+            for k, c in enumerate(cols):
+                bits[row, k] = sample.get(str(c), sample.get(c, 0))
     return bits
 
 
@@ -173,7 +190,10 @@ def main() -> None:
     print(f"[{label}] sub-QUBO enumerated: {len(E)} microstates "
           f"(E range [{E.min():.3f}, {E.max():.3f}])")
 
-    bits = load_full_sampleset(result_dir / "sampleset.json", Np, T_steps, t)
+    sampleset_path = result_dir / "sampleset.json"
+    if not sampleset_path.exists():
+        sampleset_path = result_dir / "sampleset.json.gz"
+    bits = load_full_sampleset(sampleset_path, Np, T_steps, t)
     print(f"[{label}] n_samples = {len(bits)}")
 
     # Empirical distribution (aligned to the exact-enumeration state order)
