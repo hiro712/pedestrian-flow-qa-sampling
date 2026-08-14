@@ -27,3 +27,6 @@ traj.csv
 # Editor
 .vscode/
 .idea/
+
+# Local scratch output of the experiment scripts (curated copies live in experiments/*/results/)
+code/results/

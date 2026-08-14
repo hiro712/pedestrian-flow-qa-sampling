@@ -1,0 +1,12 @@
+{
+  "label": "qa_autoscale_30k",
+  "t": 6,
+  "Np": 11,
+  "n_microstates": 2048,
+  "n_samples": 30000,
+  "beta_eff": 0.12022852653597106,
+  "T_eff": 8.317493599996928,
+  "tv_distance_at_beta_eff": 0.30013275600012096,
+  "tv_distance_at_beta_1": 0.5291905822708384,
+  "violation_rate_at_t": 0.5640666666666667
+}

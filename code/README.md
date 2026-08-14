@@ -58,6 +58,21 @@ uv run python experiments/run_sqa.py --reads 100 --out results/test_sqa
 Results are saved to `results/sqa_30k/` (curated copy of the manuscript value:
 [`../experiments/01_sqa_baseline/results/sqa_30k/`](../experiments/01_sqa_baseline/results/sqa_30k/)). Value reported in the manuscript: **RMSE = 0.077708**
 
+### SQA ablation of the transition-preference term
+
+```bash
+# Conditions A (as in the manuscript) and C (lambda_P = 0)
+uv run python experiments/run_sqa_ablation.py
+
+# Smoke test, and the full set including condition B (see the script's docstring)
+uv run python experiments/run_sqa_ablation.py --reads 100 --out results/test_ablation
+uv run python experiments/run_sqa_ablation.py --conditions ABC
+```
+
+Results are saved to `results/sqa_ablation/<condition>/`. Values reported in the manuscript:
+**RMSE = 0.0773 (A) and 0.0810 (C)**, with the top-3 corridors changing from 1-3, 6-7, 8-9 to
+0-8, 0-10, 4-5. The samplers are unseeded, so values move by about ±0.0004 between runs.
+
 ### SA (Simulated Annealing)
 
 ```bash

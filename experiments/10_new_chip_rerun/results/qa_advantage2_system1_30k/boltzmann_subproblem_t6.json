@@ -1,0 +1,12 @@
+{
+  "label": "qa_advantage2_system1_30k",
+  "t": 6,
+  "Np": 11,
+  "n_microstates": 2048,
+  "n_samples": 30000,
+  "beta_eff": 0.034785399241167095,
+  "T_eff": 28.74769362475912,
+  "tv_distance_at_beta_eff": 0.40326308902757707,
+  "tv_distance_at_beta_1": 0.9550228345208229,
+  "violation_rate_at_t": 0.9560666666666666
+}

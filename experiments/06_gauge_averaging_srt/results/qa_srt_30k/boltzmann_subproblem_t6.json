@@ -1,0 +1,12 @@
+{
+  "label": "qa_srt_30k",
+  "t": 6,
+  "Np": 11,
+  "n_microstates": 2048,
+  "n_samples": 30000,
+  "beta_eff": 0.20227932785586786,
+  "T_eff": 4.943658902765092,
+  "tv_distance_at_beta_eff": 0.5856775364307815,
+  "tv_distance_at_beta_1": 0.6789268380168738,
+  "violation_rate_at_t": 0.275
+}

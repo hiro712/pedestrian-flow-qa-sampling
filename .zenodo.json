@@ -1,0 +1,36 @@
+{
+  "title": "Prediction-based Sign Placement Using QA Sampling: code, data and experiment results",
+  "upload_type": "software",
+  "access_right": "open",
+  "license": "MIT",
+  "creators": [
+    {
+      "name": "Abe, Hiroto",
+      "affiliation": "Graduate School of Information Sciences, Tohoku University"
+    },
+    {
+      "name": "Araki, Tatsuhiro",
+      "affiliation": "Department of Economics, Tohoku University"
+    },
+    {
+      "name": "Karino, Takahiro",
+      "affiliation": "BISOUSYA Co., Ltd."
+    },
+    {
+      "name": "Ohzeki, Masayuki",
+      "affiliation": "Graduate School of Information Sciences, Tohoku University"
+    }
+  ],
+  "description": "<p>Code, observation data and experiment results accompanying the manuscript <em>Prediction-based Sign Placement Using QA Sampling</em>.</p><p>The repository contains the QUBO construction for trajectory-level pedestrian-flow reconstruction, the solver implementations (simulated quantum annealing, D-Wave Advantage2 hardware quantum annealing, parallel tempering, and a simulated-annealing proxy sampler), trajectory decoding and flow reconstruction, the validation scripts (leave-one-out cross-validation, hyper-parameter sensitivity, bootstrap confidence intervals, KL/JS divergence, effective-temperature estimation, and the ablation of the transition-preference term), the zone-boundary headcount observations, and the curated results of every experiment reported in the paper.</p><p><strong>Licensing:</strong> the source code is released under the MIT License; the observation data and experiment results (<code>data/</code> and <code>experiments/*/results/</code>) are released under CC BY 4.0. See <code>LICENSE</code> and <code>LICENSE-DATA</code>.</p>",
+  "keywords": [
+    "quantum annealing",
+    "QUBO",
+    "sampling",
+    "pedestrian flow",
+    "crowd dynamics",
+    "D-Wave",
+    "parallel tempering",
+    "simulated quantum annealing"
+  ],
+  "language": "eng"
+}
