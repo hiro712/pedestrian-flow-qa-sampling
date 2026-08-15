@@ -17,14 +17,14 @@ def build_transition_P(
 ) -> np.ndarray:
     """
     Build the transition probability matrix P (N+1, N+1) from the observed
-    headcount history C_history (T x N) and the distance matrix.
+    occupancy history C_history (T x N) and the distance matrix.
 
     Node 0 = outside (outside the venue), nodes 1..N = internal zones.
 
     Parameters
     ----------
     C_history : ndarray (T, N)
-        Observed headcount at each time step / internal zone
+        Observed occupancy at each time bin / internal zone (see data/README.md)
     distances : ndarray (N+1, N+1)
         Normalized distance matrix
     alpha : float

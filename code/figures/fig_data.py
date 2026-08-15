@@ -1,6 +1,6 @@
 """
-Fig 1 supplement: bar chart of total observed headcount per zone
-(for data inspection and the manuscript).
+Fig 1 supplement: bar chart of the observed occupancies C[t][i] summed over all
+time bins, per zone (for data inspection and the manuscript).
 
 Usage:
     uv run python figures/fig_data.py

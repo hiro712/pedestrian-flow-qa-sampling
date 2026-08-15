@@ -54,8 +54,9 @@ code/
 ├── results/                    # output destination when scripts are run (git-ignored; regenerated on rerun)
 │
 ├── data/
-│   └── observations.json       # input data (observed headcounts, 12 time steps x 10 zones)
-│                                # identical to ../data/observations.json
+│   └── observations.json       # input data (per-zone occupancies C[t][i], 12 time bins x 10 zones)
+│                                # identical to ../data/observations.json; see ../data/README.md
+│                                # for how C is defined and measured
 │
 ├── pyproject.toml              # uv dependency configuration
 └── STRUCTURE.md                # this file

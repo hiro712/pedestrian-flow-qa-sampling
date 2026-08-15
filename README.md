@@ -20,7 +20,9 @@ public_release/
 │   ├── analysis/        <-   figure-/statistic-generation scripts that consume results.json
 │   └── STRUCTURE.md     <-   detailed module-by-module map of code/ (data flow diagram, etc.)
 ├── data/
-│   └── observations.json   <- input: 12 time steps x 10 zones, aggregate pedestrian headcounts
+│   ├── README.md           <-   read this first: exactly what the observed values are
+│   └── observations.json   <- input: 12 time bins x 10 zones, per-zone occupancies C[t][i]
+│                                 (accumulated net boundary crossings; see data/README.md)
 └── experiments/         <- ** start here ** — one numbered folder per experiment:
     │                         each README explains the scientific question the experiment answers,
     │                         which script + data produced it, and what it found; each `results/`
